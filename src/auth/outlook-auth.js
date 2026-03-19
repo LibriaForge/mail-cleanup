@@ -5,38 +5,40 @@ import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const TOKEN_PATH = join(__dirname, '../../tokens/outlook-token.json');
 const TOKENS_DIR = join(__dirname, '../../tokens');
+const MSAL_CACHE_PATH = join(TOKENS_DIR, 'outlook-msal-cache.json');
 
 const SCOPES = [
   'https://graph.microsoft.com/Mail.Read',
   'https://graph.microsoft.com/Mail.ReadWrite',
+  'offline_access', // ensures a refresh token is issued
 ];
 
-function loadSavedToken() {
-  if (!existsSync(TOKEN_PATH)) return null;
-  try {
-    const data = JSON.parse(readFileSync(TOKEN_PATH, 'utf8'));
-    // Check expiry with 5-minute buffer
-    if (data.expiresAt && data.expiresAt > Date.now() + 5 * 60 * 1000) {
-      return data;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function saveToken(tokenData) {
-  if (!existsSync(TOKENS_DIR)) {
-    mkdirSync(TOKENS_DIR, { recursive: true });
-  }
-  writeFileSync(TOKEN_PATH, JSON.stringify(tokenData, null, 2));
+/**
+ * MSAL cache plugin that persists the full token cache (including refresh token)
+ * to disk so silent re-auth works across process restarts.
+ * Refresh tokens for personal MSA accounts last ~90 days.
+ */
+function makeCachePlugin() {
+  return {
+    beforeCacheAccess(cacheContext) {
+      if (existsSync(MSAL_CACHE_PATH)) {
+        try {
+          cacheContext.tokenCache.deserialize(readFileSync(MSAL_CACHE_PATH, 'utf8'));
+        } catch { /* corrupt cache — start fresh */ }
+      }
+    },
+    afterCacheAccess(cacheContext) {
+      if (cacheContext.cacheHasChanged) {
+        if (!existsSync(TOKENS_DIR)) mkdirSync(TOKENS_DIR, { recursive: true });
+        writeFileSync(MSAL_CACHE_PATH, cacheContext.tokenCache.serialize());
+      }
+    },
+  };
 }
 
 export async function authenticateOutlook() {
   const clientId = process.env.OUTLOOK_CLIENT_ID;
-  const tenantId = process.env.OUTLOOK_TENANT_ID || 'common';
 
   if (!clientId) {
     throw new Error(
@@ -45,47 +47,31 @@ export async function authenticateOutlook() {
     );
   }
 
-  // Try cached token first
-  const cached = loadSavedToken();
-  if (cached) {
-    console.log(chalk.green('Outlook: using saved authentication token.'));
-    return cached.accessToken;
-  }
-
-  const msalConfig = {
+  const pca = new PublicClientApplication({
     auth: {
       clientId,
       // 9188040d... is the dedicated Microsoft personal accounts tenant
-      authority: `https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad`,
+      authority: 'https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad',
     },
-  };
+    cache: { cachePlugin: makeCachePlugin() },
+  });
 
-  const pca = new PublicClientApplication(msalConfig);
-
-  // Try silent auth via cached MSAL account first
+  // Try silent auth using the persisted cache (refresh token path)
   const accounts = await pca.getTokenCache().getAllAccounts();
   if (accounts.length > 0) {
     try {
-      const silentResult = await pca.acquireTokenSilent({
-        scopes: SCOPES,
-        account: accounts[0],
-      });
-      const tokenData = {
-        accessToken: silentResult.accessToken,
-        expiresAt: silentResult.expiresOn?.getTime() ?? Date.now() + 3600 * 1000,
-      };
-      saveToken(tokenData);
+      const result = await pca.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
       console.log(chalk.green('Outlook: silently refreshed authentication token.'));
-      return silentResult.accessToken;
+      return result.accessToken;
     } catch {
-      // Fall through to device code flow
+      // Refresh token expired or revoked — fall through to device code
     }
   }
 
-  // Device code flow — no local server needed
+  // Device code flow — only needed once every ~90 days
   console.log(chalk.cyan('\nStarting Outlook device code authentication...'));
 
-  const deviceCodeResponse = await pca.acquireTokenByDeviceCode({
+  const result = await pca.acquireTokenByDeviceCode({
     scopes: SCOPES,
     deviceCodeCallback: (response) => {
       const msg = response.message ?? `Go to ${response.verificationUri} and enter code: ${response.userCode}`;
@@ -93,12 +79,6 @@ export async function authenticateOutlook() {
     },
   });
 
-  const tokenData = {
-    accessToken: deviceCodeResponse.accessToken,
-    expiresAt: deviceCodeResponse.expiresOn?.getTime() ?? Date.now() + 3600 * 1000,
-  };
-  saveToken(tokenData);
-
-  console.log(chalk.green('\nOutlook authentication successful. Token saved.'));
-  return deviceCodeResponse.accessToken;
+  console.log(chalk.green('\nOutlook authentication successful. Token cached — next run will be automatic.'));
+  return result.accessToken;
 }

@@ -91,3 +91,4 @@ Thumbs.db
 # App-specific
 tokens/
 checkpoint.json
+whitelist.json
