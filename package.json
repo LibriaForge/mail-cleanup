@@ -1,0 +1,25 @@
+{
+  "name": "mail-cleanup",
+  "version": "1.0.0",
+  "description": "Interactive CLI tool to triage and bulk-manage unread emails from Gmail and Outlook",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@azure/msal-node": "^2.16.2",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.5",
+    "googleapis": "^144.0.0",
+    "inquirer": "^9.3.7",
+    "node-fetch": "^3.3.2",
+    "open": "^10.1.0",
+    "ora": "^8.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
