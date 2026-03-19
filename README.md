@@ -53,6 +53,22 @@ npm start
 
 Authentication tokens are saved to `tokens/` after the first login so you won't need to re-authenticate on subsequent runs.
 
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview actions without deleting or archiving anything |
+| `--auto` | Apply all decisions automatically, no prompts |
+| `--since=YYYY-MM-DD` | Only process emails received on or before this date |
+| `--whitelist` | Open the whitelist manager to add/remove always-kept senders |
+| `DEBUG=1` | Show full error stack traces on failure |
+
+Example:
+
+```bash
+npm start -- --dry-run --since=2024-12-31
+```
+
 ## Actions
 
 | Action  | Description |
