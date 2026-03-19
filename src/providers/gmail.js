@@ -7,6 +7,37 @@ const PAGE_SIZE = 500;
 // How many message metadata requests to run in parallel
 const METADATA_BATCH_SIZE = 50;
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Run a Gmail API call with exponential backoff on quota/rate-limit errors.
+ */
+async function withRetry(fn, maxRetries = 6) {
+  let delay = 1500;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err.message ?? '';
+      const isQuota =
+        msg.includes('Quota exceeded') ||
+        msg.includes('rateLimitExceeded') ||
+        msg.includes('userRateLimitExceeded') ||
+        err.code === 429 ||
+        err.status === 429 ||
+        err.status === 403;
+
+      if (isQuota && attempt < maxRetries) {
+        console.log(chalk.yellow(`  Rate limited — waiting ${delay / 1000}s before retry (${attempt + 1}/${maxRetries})…`));
+        await sleep(delay);
+        delay = Math.min(delay * 2, 60000); // cap at 60s
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 /**
  * Parse a From header value into { name, email }.
  * Handles both "Display Name <email@example.com>" and bare "email@example.com".
@@ -185,10 +216,13 @@ export async function deleteEmails(auth, ids) {
 
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
-    await gmail.users.messages.batchDelete({
-      userId: 'me',
-      requestBody: { ids: chunk },
-    });
+    await withRetry(() =>
+      gmail.users.messages.batchDelete({
+        userId: 'me',
+        requestBody: { ids: chunk },
+      })
+    );
+    if (i + CHUNK < ids.length) await sleep(500);
   }
 }
 
@@ -203,12 +237,15 @@ export async function archiveEmails(auth, ids) {
 
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
-    await gmail.users.messages.batchModify({
-      userId: 'me',
-      requestBody: {
-        ids: chunk,
-        removeLabelIds: ['INBOX', 'UNREAD'],
-      },
-    });
+    await withRetry(() =>
+      gmail.users.messages.batchModify({
+        userId: 'me',
+        requestBody: {
+          ids: chunk,
+          removeLabelIds: ['INBOX', 'UNREAD'],
+        },
+      })
+    );
+    if (i + CHUNK < ids.length) await sleep(500);
   }
 }

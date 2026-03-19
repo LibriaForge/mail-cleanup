@@ -351,10 +351,14 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
           needsReview.push({ group, result });
         }
       } catch (err) {
-        process.stdout.write(chalk.yellow(`failed (${err.message.slice(0, 60)})\n`));
+        process.stdout.write(chalk.yellow(`failed\n`));
+        console.log(chalk.yellow(`    Claude error: ${err.message}`));
         // Fall back: add to manual review with no AI recommendation
         needsReview.push({ group, result: { action: 'ask', confidence: 'low', reason: 'Claude API error — please decide manually.' } });
       }
+
+      // Small delay to avoid hitting Anthropic rate limits on large batches
+      if (i < reviewGroups.length - 1) await new Promise((r) => setTimeout(r, 150));
     }
   } else {
     // No Claude — all remaining groups go straight to interactive review
