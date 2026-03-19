@@ -92,7 +92,14 @@ function printBanner(flags) {
 
   console.log('');
   console.log(chalk.bgCyan.black.bold('  MAIL CLEANUP  '));
-  console.log(chalk.cyan('  Triage your unread emails, sender by sender.'));
+  console.log(chalk.cyan('  Triage your emails, sender by sender.'));
+  console.log('');
+  console.log(chalk.bold('  Flags:'));
+  console.log(`  ${chalk.cyan('--dry-run')}          Preview actions without deleting or archiving anything`);
+  console.log(`  ${chalk.cyan('--auto')}              Apply all decisions automatically, no prompts`);
+  console.log(`  ${chalk.cyan('--since=YYYY-MM-DD')}  Only process emails received on or before this date`);
+  console.log(`  ${chalk.cyan('--whitelist')}         Manage the sender whitelist (always kept)`);
+  console.log(`  ${chalk.cyan('DEBUG=1')}             Show full error stack traces`);
   console.log('');
 
   if (!existsSync(ENV_PATH)) {
