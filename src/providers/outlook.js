@@ -178,14 +178,15 @@ async function sendBatch(accessToken, requests) {
     headers: { 'Content-Type': 'application/json' },
   });
 
-  const failed = (result?.responses ?? []).filter(
-    (r) => r.status !== 200 && r.status !== 204 && r.status !== 202
-  );
+  const SUCCESS = new Set([200, 201, 202, 204]);
+  const failed = (result?.responses ?? []).filter((r) => !SUCCESS.has(r.status));
   if (failed.length > 0) {
+    const first = failed[0];
     console.warn(
       chalk.yellow(
-        `  Warning: ${failed.length} batch sub-request(s) failed. ` +
-        `First failure: ${JSON.stringify(failed[0]?.body ?? '')}`
+        `  Warning: ${failed.length} batch sub-request(s) failed.\n` +
+        `  First failure — status ${first.status}, id ${first.id}:\n` +
+        `  ${JSON.stringify(first.body ?? '')}`
       )
     );
   }
