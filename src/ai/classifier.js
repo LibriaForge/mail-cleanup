@@ -6,6 +6,21 @@
  */
 
 // ---------------------------------------------------------------------------
+// Category → folder mapping (only categories that get named folders)
+// ---------------------------------------------------------------------------
+
+export const CATEGORY_FOLDERS = {
+  newsletters: 'Newsletters',
+  receipts: 'Receipts',
+  alerts: 'Alerts',
+  social: 'Social',
+  finance: 'Finance',
+  dev: 'Dev',
+  shopping: 'Shopping',
+  travel: 'Travel',
+};
+
+// ---------------------------------------------------------------------------
 // Stage 1: Keyword rules
 // ---------------------------------------------------------------------------
 
@@ -82,41 +97,53 @@ export function classifyByKeywords(group) {
   // --- DELETE rules ---
 
   if (DELETE_EMAIL_PREFIXES.some((prefix) => local.startsWith(prefix))) {
-    return { action: 'delete', reason: `Sender address starts with a bulk/marketing prefix (${local}@…).` };
+    return { action: 'delete', category: 'newsletters', reason: `Sender address starts with a bulk/marketing prefix (${local}@…).` };
   }
 
   // Subdomain segment patterns: the domain must contain e.g. ".marketing." somewhere
   // We normalise to ".domain." so we can match both leading and trailing segments.
   const normDomain = `.${dom}.`;
   if (DELETE_DOMAIN_SEGMENTS.some((seg) => normDomain.includes(seg))) {
-    return { action: 'delete', reason: `Sender domain contains a bulk-mail subdomain segment (${dom}).` };
+    return { action: 'delete', category: 'newsletters', reason: `Sender domain contains a bulk-mail subdomain segment (${dom}).` };
   }
 
   if (subjectsLower.some((s) => DELETE_SUBJECT_PHRASES.some((phrase) => s.includes(phrase)))) {
     const matched = DELETE_SUBJECT_PHRASES.find((phrase) => subjectsLower.some((s) => s.includes(phrase)));
-    return { action: 'delete', reason: `Subject contains promotional phrase: "${matched}".` };
+    return { action: 'delete', category: 'newsletters', reason: `Subject contains promotional phrase: "${matched}".` };
   }
 
   // --- KEEP rules (check before ARCHIVE so personal mail isn't archived) ---
 
   if (looksLikeRealPerson(email)) {
-    return { action: 'keep', reason: 'Sender address looks like a real person (firstname.lastname pattern).' };
+    return { action: 'keep', category: 'personal', reason: 'Sender address looks like a real person (firstname.lastname pattern).' };
   }
 
   if (subjectsLower.some((s) => KEEP_SUBJECT_PHRASES.some((phrase) => s.includes(phrase)))) {
     const matched = KEEP_SUBJECT_PHRASES.find((phrase) => subjectsLower.some((s) => s.includes(phrase)));
-    return { action: 'keep', reason: `Subject suggests personal/work correspondence: "${matched}".` };
+    const workPhrases = ['interview', 'offer', 'contract', 're:', 'fwd:'];
+    const category = workPhrases.some((p) => matched.startsWith(p)) ? 'work' : 'personal';
+    return { action: 'keep', category, reason: `Subject suggests personal/work correspondence: "${matched}".` };
   }
 
   // --- ARCHIVE rules ---
 
   if (ARCHIVE_EMAIL_PREFIXES.some((prefix) => local.startsWith(prefix))) {
-    return { action: 'archive', reason: `Sender address starts with an automated-notification prefix (${local}@…).` };
+    const receiptPrefixes = ['billing', 'invoice', 'receipt', 'order', 'shipment', 'delivery'];
+    const alertPrefixes = ['notifications', 'notification', 'alerts', 'alert'];
+    let category = 'other';
+    if (receiptPrefixes.some((p) => local.startsWith(p))) category = 'receipts';
+    else if (alertPrefixes.some((p) => local.startsWith(p))) category = 'alerts';
+    return { action: 'archive', category, reason: `Sender address starts with an automated-notification prefix (${local}@…).` };
   }
 
   if (subjectsLower.some((s) => ARCHIVE_SUBJECT_PHRASES.some((phrase) => s.includes(phrase)))) {
     const matched = ARCHIVE_SUBJECT_PHRASES.find((phrase) => subjectsLower.some((s) => s.includes(phrase)));
-    return { action: 'archive', reason: `Subject matches automated notification phrase: "${matched}".` };
+    const receiptPhrases = ['receipt', 'invoice', 'order confirmation', 'your shipment', 'has shipped', 'delivery'];
+    const newsletterPhrases = ['digest', 'summary'];
+    let category = 'other';
+    if (receiptPhrases.some((p) => matched.includes(p))) category = 'receipts';
+    else if (newsletterPhrases.some((p) => matched.includes(p))) category = 'newsletters';
+    return { action: 'archive', category, reason: `Subject matches automated notification phrase: "${matched}".` };
   }
 
   // No rule matched
@@ -152,7 +179,8 @@ Reply with JSON only, no explanation outside the JSON:
 {
   "action": "delete" | "archive" | "keep" | "ask",
   "confidence": "high" | "medium" | "low",
-  "reason": "one short sentence"
+  "reason": "one short sentence",
+  "category": "newsletters" | "receipts" | "alerts" | "social" | "finance" | "dev" | "shopping" | "travel" | "personal" | "work" | "other"
 }
 
 Rules:
@@ -162,7 +190,8 @@ Rules:
 - ask: genuinely ambiguous — mixed signals, unclear sender purpose
 - confidence high = obvious decision, apply automatically without asking user
 - confidence medium = fairly sure, show recommendation and ask Y/N to confirm
-- confidence low or action=ask = show recommendation, let user pick from full menu`;
+- confidence low or action=ask = show recommendation, let user pick from full menu
+- category: best-fit category label for this sender`;
 
   const message = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -186,10 +215,12 @@ Rules:
   // Validate and normalise fields
   const validActions = ['delete', 'archive', 'keep', 'ask'];
   const validConfidences = ['high', 'medium', 'low'];
+  const validCategories = ['newsletters', 'receipts', 'alerts', 'social', 'finance', 'dev', 'shopping', 'travel', 'personal', 'work', 'other'];
 
   const action = validActions.includes(parsed.action) ? parsed.action : 'ask';
   const confidence = validConfidences.includes(parsed.confidence) ? parsed.confidence : 'low';
   const reason = typeof parsed.reason === 'string' ? parsed.reason : 'No reason provided.';
+  const category = validCategories.includes(parsed.category) ? parsed.category : 'other';
 
-  return { action, confidence, reason };
+  return { action, confidence, reason, category };
 }

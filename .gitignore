@@ -92,3 +92,5 @@ Thumbs.db
 tokens/
 checkpoint.json
 whitelist.json
+rules.json
+reports/

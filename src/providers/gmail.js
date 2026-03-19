@@ -249,3 +249,54 @@ export async function archiveEmails(auth, ids) {
     if (i + CHUNK < ids.length) await sleep(500);
   }
 }
+
+/** Get or create a Gmail label by name. Returns the label ID. */
+export async function getOrCreateLabel(auth, name) {
+  const gmail = google.gmail({ version: 'v1', auth });
+  const res = await withRetry(() => gmail.users.labels.list({ userId: 'me' }));
+  const existing = (res.data.labels ?? []).find((l) => l.name === name);
+  if (existing) return existing.id;
+  const created = await withRetry(() =>
+    gmail.users.labels.create({
+      userId: 'me',
+      requestBody: { name, labelListVisibility: 'labelShow', messageListVisibility: 'show' },
+    })
+  );
+  return created.data.id;
+}
+
+/** Move messages to a named label (creates if needed). Removes INBOX + UNREAD. */
+export async function moveToFolder(auth, ids, folderName) {
+  if (ids.length === 0) return;
+  const gmail = google.gmail({ version: 'v1', auth });
+  const labelId = await getOrCreateLabel(auth, folderName);
+  const CHUNK = 1000;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    await withRetry(() =>
+      gmail.users.messages.batchModify({
+        userId: 'me',
+        requestBody: { ids: chunk, addLabelIds: [labelId], removeLabelIds: ['INBOX', 'UNREAD'] },
+      })
+    );
+    if (i + CHUNK < ids.length) await sleep(500);
+  }
+}
+
+/** Fetch List-Unsubscribe header from a single message. */
+export async function fetchListUnsubscribe(auth, messageId) {
+  const gmail = google.gmail({ version: 'v1', auth });
+  try {
+    const res = await gmail.users.messages.get({
+      userId: 'me', id: messageId, format: 'metadata',
+      metadataHeaders: ['List-Unsubscribe', 'List-Unsubscribe-Post'],
+      fields: 'payload/headers',
+    });
+    const headers = res.data.payload?.headers ?? [];
+    const headerValue = headers.find((h) => h.name === 'List-Unsubscribe')?.value ?? null;
+    const postHeader = headers.find((h) => h.name === 'List-Unsubscribe-Post')?.value ?? null;
+    return { headerValue, hasOneClick: postHeader?.toLowerCase().includes('one-click') ?? false };
+  } catch {
+    return { headerValue: null, hasOneClick: false };
+  }
+}

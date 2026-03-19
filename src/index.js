@@ -26,11 +26,11 @@ const ENV_PATH = join(__dirname, '../.env');
  *   --since=YYYY-MM-DD   only process emails on or before this date
  *   --whitelist          open the whitelist manager
  *
- * @returns {{ dryRun: boolean, auto: boolean, since: string|null, whitelist: boolean }}
+ * @returns {{ dryRun: boolean, auto: boolean, since: string|null, whitelist: boolean, report: boolean }}
  */
 function parseFlags() {
   const args = process.argv.slice(2);
-  const flags = { dryRun: false, auto: false, since: null, whitelist: false };
+  const flags = { dryRun: false, auto: false, since: null, whitelist: false, report: false };
 
   for (const arg of args) {
     if (arg === '--dry-run') {
@@ -39,6 +39,8 @@ function parseFlags() {
       flags.auto = true;
     } else if (arg === '--whitelist') {
       flags.whitelist = true;
+    } else if (arg === '--report') {
+      flags.report = true;
     } else if (arg.startsWith('--since=')) {
       const dateStr = arg.slice('--since='.length).trim();
       // Basic ISO date validation: YYYY-MM-DD
@@ -99,6 +101,7 @@ function printBanner(flags) {
   console.log(`  ${chalk.cyan('--auto')}              Apply all decisions automatically, no prompts`);
   console.log(`  ${chalk.cyan('--since=YYYY-MM-DD')}  Only process emails received on or before this date`);
   console.log(`  ${chalk.cyan('--whitelist')}         Manage the sender whitelist (always kept)`);
+  console.log(`  ${chalk.cyan('--report')}            Write a JSON summary to reports/YYYY-MM-DD-HH-MM.json`);
   console.log(`  ${chalk.cyan('DEBUG=1')}             Show full error stack traces`);
   console.log('');
 

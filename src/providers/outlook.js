@@ -101,14 +101,6 @@ export async function fetchAndGroupEmails(accessToken, options = {}) {
     console.log(chalk.gray(`Token scp: ${payload.scp ?? payload.roles ?? '(none)'}`));
   } catch { /* ignore */ }
 
-  // Probe /me — non-fatal, just informational
-  try {
-    const me = await graphRequest(accessToken, '/me?$select=displayName,mail,userPrincipalName');
-    console.log(chalk.green(`Authenticated as: ${me.displayName} <${me.mail ?? me.userPrincipalName}>`));
-  } catch (e) {
-    console.log(chalk.yellow(`/me probe: ${e.message} — continuing anyway`));
-  }
-
   const spinner = ora({ text: chalk.cyan('Connecting to Outlook…'), color: 'cyan' }).start();
 
   try {
@@ -265,5 +257,52 @@ export async function archiveEmails(accessToken, ids) {
     for (let j = 0; j < requests.length; j += GRAPH_BATCH_SIZE) {
       await sendBatch(accessToken, requests.slice(j, j + GRAPH_BATCH_SIZE));
     }
+  }
+}
+
+// Folder ID cache to avoid repeated API calls within a session
+const folderIdCache = new Map();
+
+/** Get or create a named child folder under Inbox. Returns folder ID. */
+export async function getOrCreateFolder(accessToken, name) {
+  if (folderIdCache.has(name)) return folderIdCache.get(name);
+  const res = await graphRequest(accessToken, '/me/mailFolders/inbox/childFolders?$select=id,displayName&$top=200');
+  const existing = (res?.value ?? []).find((f) => f.displayName === name);
+  if (existing) { folderIdCache.set(name, existing.id); return existing.id; }
+  const created = await graphRequest(accessToken, '/me/mailFolders/inbox/childFolders', {
+    method: 'POST',
+    body: JSON.stringify({ displayName: name }),
+  });
+  folderIdCache.set(name, created.id);
+  return created.id;
+}
+
+/** Move messages to a named folder (creates if needed) using Graph batch. */
+export async function moveToFolder(accessToken, ids, folderName) {
+  if (ids.length === 0) return;
+  const folderId = await getOrCreateFolder(accessToken, folderName);
+  for (let i = 0; i < ids.length; i += GRAPH_BATCH_SIZE) {
+    const chunk = ids.slice(i, i + GRAPH_BATCH_SIZE);
+    const requests = chunk.map((id, idx) => ({
+      id: String(idx + 1),
+      method: 'POST',
+      url: `/me/messages/${encodeURIComponent(id)}/move`,
+      headers: { 'Content-Type': 'application/json' },
+      body: { destinationId: folderId },
+    }));
+    await sendBatch(accessToken, requests);
+  }
+}
+
+/** Fetch List-Unsubscribe header from a single message via Graph. */
+export async function fetchListUnsubscribe(accessToken, messageId) {
+  try {
+    const res = await graphRequest(accessToken, `/me/messages/${encodeURIComponent(messageId)}?$select=internetMessageHeaders`);
+    const headers = res?.internetMessageHeaders ?? [];
+    const headerValue = headers.find((h) => h.name.toLowerCase() === 'list-unsubscribe')?.value ?? null;
+    const postHeader = headers.find((h) => h.name.toLowerCase() === 'list-unsubscribe-post')?.value ?? null;
+    return { headerValue, hasOneClick: postHeader?.toLowerCase().includes('one-click') ?? false };
+  } catch {
+    return { headerValue: null, hasOneClick: false };
   }
 }
