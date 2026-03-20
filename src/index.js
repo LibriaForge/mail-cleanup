@@ -35,13 +35,14 @@ if (VERSION === 'unknown') VERSION = '1.0.0';
  *   --auto               skip all interactive prompts
  *   --from=YYYY-MM-DD    only process emails received on or after this date
  *   --to=YYYY-MM-DD      only process emails received on or before this date
+ *   --inbox              only process emails in the inbox (ignore all other folders/labels)
  *   --whitelist          open the whitelist manager
  *
- * @returns {{ dryRun: boolean, auto: boolean, from: string|null, to: string|null, whitelist: boolean, report: boolean }}
+ * @returns {{ dryRun: boolean, auto: boolean, from: string|null, to: string|null, inbox: boolean, whitelist: boolean, report: boolean }}
  */
 function parseFlags() {
   const args = process.argv.slice(2);
-  const flags = { dryRun: false, auto: false, from: null, to: null, whitelist: false, report: false };
+  const flags = { dryRun: false, auto: false, from: null, to: null, inbox: false, whitelist: false, report: false };
 
   const isValidDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
@@ -57,6 +58,8 @@ function parseFlags() {
       flags.whitelist = true;
     } else if (arg === '--report') {
       flags.report = true;
+    } else if (arg === '--inbox') {
+      flags.inbox = true;
     } else if (arg.startsWith('--from=')) {
       const dateStr = arg.slice('--from='.length).trim();
       if (isValidDate(dateStr)) flags.from = dateStr;
@@ -117,6 +120,7 @@ function printBanner(flags) {
   console.log(`  ${chalk.cyan('--auto')}              Apply all decisions automatically, no prompts`);
   console.log(`  ${chalk.cyan('--from=YYYY-MM-DD')}   Only process emails received on or after this date`);
   console.log(`  ${chalk.cyan('--to=YYYY-MM-DD')}     Only process emails received on or before this date`);
+  console.log(`  ${chalk.cyan('--inbox')}             Only process emails in the inbox (skip all other folders/labels)`);
   console.log(`  ${chalk.cyan('--whitelist')}         Manage the sender whitelist (always kept)`);
   console.log(`  ${chalk.cyan('--report')}            Write a JSON summary to reports/YYYY-MM-DD-HH-MM.json`);
   console.log(`  ${chalk.cyan('DEBUG=1')}             Show full error stack traces`);
@@ -190,7 +194,7 @@ async function runGmail(flags) {
     }
   }
 
-  const groups = await gmailProvider.fetchAndGroupEmails(auth, { from: flags.from, to: flags.to, excludeIds });
+  const groups = await gmailProvider.fetchAndGroupEmails(auth, { from: flags.from, to: flags.to, inbox: flags.inbox, excludeIds });
   await runReviewLoop(groups, gmailProvider, auth, flags, checkpoint, 'gmail');
 }
 
@@ -215,7 +219,7 @@ async function runOutlook(flags) {
     }
   }
 
-  const groups = await outlookProvider.fetchAndGroupEmails(accessToken, { from: flags.from, to: flags.to, excludeIds });
+  const groups = await outlookProvider.fetchAndGroupEmails(accessToken, { from: flags.from, to: flags.to, inbox: flags.inbox, excludeIds });
   await runReviewLoop(groups, outlookProvider, accessToken, flags, checkpoint, 'outlook');
 }
 
