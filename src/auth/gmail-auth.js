@@ -113,6 +113,7 @@ export async function authenticateGmail() {
 
   // Set up automatic token refresh saving
   oauth2Client.on('tokens', (tokens) => {
+    if (!existsSync(TOKENS_DIR)) mkdirSync(TOKENS_DIR, { recursive: true });
     const current = existsSync(TOKEN_PATH)
       ? JSON.parse(readFileSync(TOKEN_PATH, 'utf8'))
       : {};
