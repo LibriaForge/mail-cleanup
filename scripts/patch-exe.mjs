@@ -5,6 +5,7 @@ import { readFileSync } from 'fs';
 const { version } = JSON.parse(readFileSync('package.json', 'utf-8'));
 
 await rcedit('dist/mail-cleanup.exe', {
+  icon: 'assets/icon.ico',
   'version-string': {
     FileDescription:  'LibriaForge Mail Cleanup',
     ProductName:      'Mail Cleanup',
