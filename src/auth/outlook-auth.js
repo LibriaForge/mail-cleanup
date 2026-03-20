@@ -1,11 +1,9 @@
 import { PublicClientApplication } from '@azure/msal-node';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import chalk from 'chalk';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const TOKENS_DIR = join(__dirname, '../../tokens');
+const TOKENS_DIR = join(process.cwd(), 'tokens');
 const MSAL_CACHE_PATH = join(TOKENS_DIR, 'outlook-msal-cache.json');
 
 const SCOPES = [

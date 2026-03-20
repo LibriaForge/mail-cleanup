@@ -1,14 +1,12 @@
 import { google } from 'googleapis';
 import { createServer } from 'http';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import open from 'open';
 import chalk from 'chalk';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const TOKEN_PATH = join(__dirname, '../../tokens/gmail-token.json');
-const TOKENS_DIR = join(__dirname, '../../tokens');
+const TOKEN_PATH = join(process.cwd(), 'tokens/gmail-token.json');
+const TOKENS_DIR = join(process.cwd(), 'tokens');
 
 const SCOPES = [
   'https://mail.google.com/',

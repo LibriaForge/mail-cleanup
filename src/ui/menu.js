@@ -4,16 +4,15 @@ import ora from 'ora';
 import Anthropic from '@anthropic-ai/sdk';
 import { createInterface } from 'readline';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
+
 import { classifyByKeywords, classifyWithClaude, CATEGORY_FOLDERS } from '../ai/classifier.js';
 import { loadWhitelist } from '../whitelist.js';
 import { saveCheckpoint, clearCheckpoint } from '../checkpoint.js';
 import { loadRules, saveRules, getRuleForSender } from '../rules.js';
 import { parseUnsubscribeHeader, executeUnsubscribe } from '../unsubscribe.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPORTS_DIR = join(__dirname, '../../reports');
+const REPORTS_DIR = join(process.cwd(), 'reports');
 
 // ---------------------------------------------------------------------------
 // Helpers

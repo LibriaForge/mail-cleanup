@@ -1,9 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const RULES_PATH = join(__dirname, '../rules.json');
+const RULES_PATH = join(process.cwd(), 'rules.json');
 
 /** Load saved sender rules. Shape: { [email | "*@domain"]: { action, folder? } } */
 export function loadRules() {

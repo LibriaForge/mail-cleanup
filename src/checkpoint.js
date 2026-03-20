@@ -1,9 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const CHECKPOINT_PATH = join(__dirname, '../checkpoint.json');
+const CHECKPOINT_PATH = join(process.cwd(), 'checkpoint.json');
 
 /**
  * Load the checkpoint file from the project root.

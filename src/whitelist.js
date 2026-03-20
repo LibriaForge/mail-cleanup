@@ -1,12 +1,10 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import { createInterface } from 'readline';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const WHITELIST_PATH = join(__dirname, '../whitelist.json');
+const WHITELIST_PATH = join(process.cwd(), 'whitelist.json');
 
 /**
  * Load the whitelist from whitelist.json.
