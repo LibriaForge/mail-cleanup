@@ -175,6 +175,7 @@ If this tool saves you time, consider supporting development:
 ## Confidentiality
 
 - Credentials and tokens are stored locally in `.env`, `tokens/`, and `imap-config.json` — never committed to git
+- **IMAP passwords are stored in plain text** in `imap-config.json` — keep this file private and do not share it
 - Sender name, email address, and subject lines are sent to the Anthropic API for classification if `ANTHROPIC_API_KEY` is set
 - For ambiguous senders, a plain-text body snippet (up to 500 chars, HTML stripped) is sent to Claude for a second, more informed classification — never stored
 - OAuth tokens are never sent to any third party

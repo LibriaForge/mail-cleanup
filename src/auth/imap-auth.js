@@ -61,10 +61,11 @@ export async function getImapClient() {
     console.log(chalk.gray(`  Using saved IMAP config for ${config.user} on ${config.host}`));
   } else {
     console.log(chalk.bold('\n  IMAP Setup'));
-    console.log(chalk.gray('  Credentials are saved locally to imap-config.json and never transmitted.\n'));
     config = await promptConfig();
     writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
-    console.log(chalk.green('  Config saved to imap-config.json\n'));
+    console.log(chalk.green('  Config saved to imap-config.json'));
+    console.log(chalk.yellow('  ⚠ Warning: your password is stored in plain text in imap-config.json.'));
+    console.log(chalk.yellow('  Keep this file private and do not share or commit it.\n'));
   }
 
   const clientOptions = {
