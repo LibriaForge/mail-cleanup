@@ -12,8 +12,10 @@
  * Requirements: gh CLI must be installed and authenticated.
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { execSync } from 'child_process';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
 const version = pkg.version;
@@ -41,7 +43,7 @@ try {
   run(`git push origin ${tag}`);
 }
 
-// 3. GitHub release
+// 3. GitHub release — write notes to a temp file to avoid quoting issues
 const notes = [
   `## ${tag}`,
   '',
@@ -53,10 +55,13 @@ const notes = [
   'See the [README](https://github.com/LibriaForge/mail-cleanup#readme) for setup instructions.',
 ].join('\n');
 
-run(
-  `gh release create ${tag} dist/mail-cleanup.exe` +
-  ` --title "Mail Cleanup ${tag}"` +
-  ` --notes "${notes.replace(/"/g, '\\"')}"`,
-);
+const notesFile = join(tmpdir(), `release-notes-${tag}.md`);
+writeFileSync(notesFile, notes, 'utf-8');
+
+try {
+  run(`gh release create ${tag} dist/mail-cleanup.exe --title "Mail Cleanup ${tag}" --notes-file "${notesFile}"`);
+} finally {
+  unlinkSync(notesFile);
+}
 
 console.log(`\nDone! Release ${tag} published.`);
