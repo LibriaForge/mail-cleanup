@@ -95,7 +95,8 @@ The output binary is fully self-contained. Distribute it alongside a `.env` file
 |------|-------------|
 | `--dry-run` | Preview actions without deleting or archiving anything |
 | `--auto` | Apply all decisions automatically, no prompts |
-| `--since=YYYY-MM-DD` | Only process emails received on or before this date |
+| `--from=YYYY-MM-DD` | Only process emails received on or after this date |
+| `--to=YYYY-MM-DD` | Only process emails received on or before this date |
 | `--whitelist` | Open the whitelist manager to add/remove always-kept senders |
 | `--report` | Save a JSON session report to `reports/YYYY-MM-DD-HH-MM.json` |
 | `DEBUG=1` | Show full error stack traces on failure |
@@ -103,7 +104,7 @@ The output binary is fully self-contained. Distribute it alongside a `.env` file
 Example:
 
 ```bash
-npm start -- --dry-run --since=2024-12-31
+npm start -- --dry-run --from=2024-01-01 --to=2024-12-31
 npm start -- --auto --report
 ```
 
@@ -112,7 +113,7 @@ npm start -- --auto --report
 | Action | Description |
 |--------|-------------|
 | Delete | Permanently removes all emails from that sender |
-| Unsubscribe + Delete | Follows the `List-Unsubscribe` header then deletes — shown for newsletters |
+| Unsubscribe + Delete | Follows the `List-Unsubscribe` header or scans the email body for an unsubscribe link, opens it in your browser, then deletes |
 | Archive | Moves emails to a named category folder and marks as read |
 | Keep | Leaves emails exactly as they are |
 | Skip | Defers the decision to the next session |
