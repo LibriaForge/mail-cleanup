@@ -11,6 +11,8 @@ import * as gmailAuth from './auth/gmail-auth.js';
 import * as gmailProvider from './providers/gmail.js';
 import * as outlookAuth from './auth/outlook-auth.js';
 import * as outlookProvider from './providers/outlook.js';
+import * as imapProvider from './providers/imap.js';
+import { getImapClient } from './auth/imap-auth.js';
 import { runReviewLoop } from './ui/menu.js';
 
 const ENV_PATH = join(process.cwd(), '.env');
@@ -34,6 +36,7 @@ if (VERSION === 'unknown') VERSION = '1.0.0';
  *   --dry-run              never call deleteEmails/archiveEmails
  *   --auto                 skip all interactive prompts
  *   --all                  scan all folders/labels (default is inbox only)
+ *   --include-read         include already-read emails (default is unread only)
  *   --no-ai                skip Claude API even if ANTHROPIC_API_KEY is set
  *   --body-unsubscribe     fetch email body to find unsubscribe links (opt-in, privacy)
  *   --body-classify        fetch body snippet to refine uncertain classifications (opt-in, privacy)
@@ -45,7 +48,7 @@ if (VERSION === 'unknown') VERSION = '1.0.0';
  */
 function parseFlags() {
   const args = process.argv.slice(2);
-  const flags = { dryRun: false, auto: false, all: false, noAi: false, bodyUnsubscribe: false, bodyClassify: false, from: null, to: null, whitelist: false, report: false };
+  const flags = { dryRun: false, auto: false, all: false, includeRead: false, noAi: false, bodyUnsubscribe: false, bodyClassify: false, from: null, to: null, whitelist: false, report: false };
 
   const isValidDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
@@ -59,6 +62,8 @@ function parseFlags() {
       flags.auto = true;
     } else if (arg === '--all') {
       flags.all = true;
+    } else if (arg === '--include-read') {
+      flags.includeRead = true;
     } else if (arg === '--no-ai') {
       flags.noAi = true;
     } else if (arg === '--body-unsubscribe') {
@@ -128,6 +133,7 @@ function printBanner(flags) {
   console.log(`  ${chalk.cyan('--dry-run')}             Preview actions without making any changes`);
   console.log(`  ${chalk.cyan('--auto')}               Apply high/medium-confidence decisions automatically`);
   console.log(`  ${chalk.cyan('--all')}                Scan all folders/labels (default: inbox only)`);
+  console.log(`  ${chalk.cyan('--include-read')}       Include already-read emails (default: unread only)`);
   console.log(`  ${chalk.cyan('--no-ai')}              Skip Claude API even if ANTHROPIC_API_KEY is set`);
   console.log(`  ${chalk.cyan('--body-unsubscribe')}   Fetch email body to find unsubscribe links (opt-in)`);
   console.log(`  ${chalk.cyan('--body-classify')}      Fetch body snippet to refine uncertain AI classifications (opt-in)`);
@@ -155,6 +161,7 @@ async function pickProvider() {
       choices: [
         { name: `${chalk.red('Gmail')}   — uses OAuth2 (opens browser)`, value: 'gmail' },
         { name: `${chalk.blue('Outlook')} — uses device code flow (no browser redirect needed)`, value: 'outlook' },
+        { name: `${chalk.yellow('IMAP')}    — Yahoo, AOL, iCloud, Zoho, or any IMAP server`, value: 'imap' },
         new inquirer.Separator(),
         { name: chalk.gray('Exit'), value: 'exit' },
       ],
@@ -206,7 +213,7 @@ async function runGmail(flags) {
     }
   }
 
-  const groups = await gmailProvider.fetchAndGroupEmails(auth, { from: flags.from, to: flags.to, inbox: !flags.all, excludeIds });
+  const groups = await gmailProvider.fetchAndGroupEmails(auth, { from: flags.from, to: flags.to, inbox: !flags.all, unreadOnly: !flags.includeRead, excludeIds });
   await runReviewLoop(groups, gmailProvider, auth, flags, checkpoint, 'gmail');
 }
 
@@ -231,8 +238,35 @@ async function runOutlook(flags) {
     }
   }
 
-  const groups = await outlookProvider.fetchAndGroupEmails(accessToken, { from: flags.from, to: flags.to, inbox: !flags.all, excludeIds });
+  const groups = await outlookProvider.fetchAndGroupEmails(accessToken, { from: flags.from, to: flags.to, inbox: !flags.all, unreadOnly: !flags.includeRead, excludeIds });
   await runReviewLoop(groups, outlookProvider, accessToken, flags, checkpoint, 'outlook');
+}
+
+async function runImap(flags) {
+  const client = await getImapClient();
+
+  // Checkpoint handling
+  let checkpoint = null;
+  let excludeIds = [];
+  const existingCheckpoint = loadCheckpoint();
+
+  if (existingCheckpoint && existingCheckpoint.provider === 'imap') {
+    const resume = await askResumeCheckpoint('IMAP', existingCheckpoint.createdAt);
+    if (resume) {
+      checkpoint = existingCheckpoint;
+      excludeIds = existingCheckpoint.processedEmails ?? [];
+      console.log(chalk.cyan(`Resuming — skipping ${excludeIds.length.toLocaleString()} already-processed email(s).`));
+    } else {
+      clearCheckpoint();
+    }
+  }
+
+  try {
+    const groups = await imapProvider.fetchAndGroupEmails(client, { from: flags.from, to: flags.to, inbox: !flags.all, unreadOnly: !flags.includeRead, excludeIds });
+    await runReviewLoop(groups, imapProvider, client, flags, checkpoint, 'imap');
+  } finally {
+    await client.logout().catch(() => {});
+  }
 }
 
 async function main() {
@@ -258,6 +292,8 @@ async function main() {
       await runGmail(flags);
     } else if (provider === 'outlook') {
       await runOutlook(flags);
+    } else if (provider === 'imap') {
+      await runImap(flags);
     }
   } catch (err) {
     console.log('');

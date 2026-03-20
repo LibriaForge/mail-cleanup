@@ -1,6 +1,6 @@
 # mail-cleanup
 
-An interactive CLI tool to bulk-clean Gmail and Outlook inboxes. Supports AI-powered auto-classification via the Claude API to automatically delete, archive, or flag emails for manual review.
+An interactive CLI tool to bulk-clean Gmail, Outlook, and IMAP inboxes (Yahoo Mail, AOL, iCloud, Zoho, and any IMAP server). Supports AI-powered auto-classification via the Claude API to automatically delete, archive, or flag emails for manual review.
 
 ## How it works
 
@@ -42,6 +42,15 @@ cp .env.example .env
 - In the Manifest editor, set `"accessTokenAcceptedVersion": 2` and `"signInAudience": "PersonalMicrosoftAccount"`
 - Copy the Application (client) ID into `.env`
 
+#### IMAP (Yahoo, AOL, iCloud, Zoho, or any IMAP server)
+- No app registration required
+- You will be prompted for your IMAP host, port, and credentials on first run
+- Credentials are saved locally to `imap-config.json` (never committed to git)
+- **Yahoo Mail and AOL require an App Password** — your regular account password will not work with IMAP:
+  - Yahoo: [login.yahoo.com/account/security](https://login.yahoo.com/account/security)
+  - AOL: [myaccount.aol.com](https://myaccount.aol.com)
+- **iCloud** also requires an App-Specific Password: [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords
+
 #### Claude API (optional, for AI classification)
 - Go to [console.anthropic.com](https://console.anthropic.com) → API Keys → Create Key
 - Copy the key into `.env`
@@ -56,13 +65,13 @@ Authentication tokens are saved to `tokens/` after the first login so you won't 
 
 ## Download
 
-Pre-built binaries are available in the [`dist/`](dist/) folder — no Node.js or Bun required.
+Pre-built binaries are available on the [Releases page](https://github.com/libriaforge/mail-cleanup/releases/latest) — no Node.js or Bun required.
 
 | Platform | File |
 |----------|------|
-| Windows x64 | [`dist/mail-cleanup.exe`](dist/mail-cleanup.exe) |
+| Windows x64 | `mail-cleanup.exe` |
 
-Place the binary in any folder, create a `.env` file next to it with your credentials, and run it.
+Download the binary, place it in any folder, create a `.env` file next to it with your credentials, and run it.
 
 > **Antivirus false positive** — Some antivirus tools (including Avast) may flag the executable with a heuristic detection like `IDP.HELU.PSE69`. This is a known false positive that affects all self-contained binaries built with Bun, PyInstaller, and similar tools — the binary embeds a JavaScript runtime which looks unusual to heuristic scanners. The source code is fully open for inspection. To resolve: restore the file from quarantine and add the folder as an exception in your AV settings.
 
@@ -96,6 +105,7 @@ The output binary is fully self-contained. Distribute it alongside a `.env` file
 | `--dry-run` | Preview actions without making any changes |
 | `--auto` | Apply high/medium-confidence decisions automatically. Low-confidence senders are skipped — run without `--auto` to review them interactively |
 | `--all` | Scan all folders and labels (default is inbox only) |
+| `--include-read` | Include already-read emails (default is unread only) |
 | `--no-ai` | Skip Claude API even if `ANTHROPIC_API_KEY` is set |
 | `--body-unsubscribe` | Scan email body for unsubscribe links when no header link is found (opt-in — reads one email body per sender) |
 | `--body-classify` | Fetch a body snippet to refine uncertain AI classifications (opt-in — reads one email body per uncertain sender) |
@@ -164,7 +174,7 @@ If this tool saves you time, consider supporting development:
 
 ## Confidentiality
 
-- Credentials and tokens are stored locally in `.env` and `tokens/` — never committed to git
+- Credentials and tokens are stored locally in `.env`, `tokens/`, and `imap-config.json` — never committed to git
 - Sender name, email address, and subject lines are sent to the Anthropic API for classification if `ANTHROPIC_API_KEY` is set
 - For ambiguous senders, a plain-text body snippet (up to 500 chars, HTML stripped) is sent to Claude for a second, more informed classification — never stored
 - OAuth tokens are never sent to any third party

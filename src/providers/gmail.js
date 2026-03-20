@@ -64,8 +64,9 @@ function parseFrom(fromHeader) {
  * @param {string|undefined} from  - optional ISO date string (YYYY-MM-DD); only fetch emails on or after this date
  * @param {string|undefined} to    - optional ISO date string (YYYY-MM-DD); only fetch emails on or before this date
  * @param {boolean} inbox          - if true, only fetch emails in the inbox
+ * @param {boolean} unreadOnly     - if true, only fetch unread emails
  */
-async function fetchAllMessageIds(gmail, spinner, from, to, inbox) {
+async function fetchAllMessageIds(gmail, spinner, from, to, inbox, unreadOnly) {
   const ids = [];
   let pageToken;
   let page = 0;
@@ -74,7 +75,8 @@ async function fetchAllMessageIds(gmail, spinner, from, to, inbox) {
   const toGmailDate = (d) => `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
 
   // Build the query string
-  let query = inbox ? 'in:inbox' : 'in:all -in:trash';
+  let query = inbox ? 'in:inbox' : 'in:all -in:trash -in:spam';
+  if (unreadOnly) query += ' is:unread';
   if (from) {
     // Gmail's after: operator is exclusive, so subtract one day to make it inclusive.
     const d = new Date(from);
@@ -135,19 +137,20 @@ async function fetchMetadataBatch(gmail, ids) {
  *
  * @param {object} auth - authenticated OAuth2 client
  * @param {object} [options]
- * @param {string} [options.from]  - ISO date string (YYYY-MM-DD); only include emails on or after this date
- * @param {string} [options.to]    - ISO date string (YYYY-MM-DD); only include emails on or before this date
- * @param {boolean} [options.inbox] - if true, only fetch emails in the inbox
+ * @param {string} [options.from]       - ISO date string (YYYY-MM-DD); only include emails on or after this date
+ * @param {string} [options.to]         - ISO date string (YYYY-MM-DD); only include emails on or before this date
+ * @param {boolean} [options.inbox]     - if true, only fetch emails in the inbox
+ * @param {boolean} [options.unreadOnly] - if true, only fetch unread emails
  * @param {string[]} [options.excludeIds] - message IDs to exclude (already processed in a previous session)
  */
 export async function fetchAndGroupEmails(auth, options = {}) {
-  const { from, to, inbox = false, excludeIds = [] } = options;
+  const { from, to, inbox = true, unreadOnly = true, excludeIds = [] } = options;
   const gmail = google.gmail({ version: 'v1', auth });
   const spinner = ora({ text: chalk.cyan('Connecting to Gmail…'), color: 'cyan' }).start();
 
   try {
     // Step 1: Get all message IDs
-    const allIds = await fetchAllMessageIds(gmail, spinner, from, to, inbox);
+    const allIds = await fetchAllMessageIds(gmail, spinner, from, to, inbox, unreadOnly);
 
     // Filter out already-processed IDs (checkpoint resume)
     const excludeSet = new Set(excludeIds);

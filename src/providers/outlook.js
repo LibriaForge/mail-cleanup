@@ -42,8 +42,9 @@ async function graphRequest(accessToken, path, options = {}) {
  * @param {string|undefined} from  - optional ISO date string (YYYY-MM-DD); only fetch emails on or after this date
  * @param {string|undefined} to    - optional ISO date string (YYYY-MM-DD); only fetch emails on or before this date
  * @param {boolean} inbox          - if true, only fetch emails from the inbox folder
+ * @param {boolean} unreadOnly     - if true, only fetch unread emails
  */
-async function fetchAllMessages(accessToken, spinner, from, to, inbox) {
+async function fetchAllMessages(accessToken, spinner, from, to, inbox, unreadOnly) {
   // Get Deleted Items folder ID so we can exclude it
   let deletedItemsId = null;
   try {
@@ -60,6 +61,9 @@ async function fetchAllMessages(accessToken, spinner, from, to, inbox) {
   }
   if (to) {
     filterParts.push(`receivedDateTime le ${to}T23:59:59Z`);
+  }
+  if (unreadOnly) {
+    filterParts.push(`isRead eq false`);
   }
 
   const filterStr = filterParts.length > 0 ? filterParts.join(' and ') : null;
@@ -93,13 +97,14 @@ async function fetchAllMessages(accessToken, spinner, from, to, inbox) {
  *
  * @param {string} accessToken
  * @param {object} [options]
- * @param {string} [options.from]   - ISO date string (YYYY-MM-DD); only include emails on or after this date
- * @param {string} [options.to]     - ISO date string (YYYY-MM-DD); only include emails on or before this date
- * @param {boolean} [options.inbox] - if true, only fetch emails from the inbox folder
+ * @param {string} [options.from]        - ISO date string (YYYY-MM-DD); only include emails on or after this date
+ * @param {string} [options.to]          - ISO date string (YYYY-MM-DD); only include emails on or before this date
+ * @param {boolean} [options.inbox]      - if true, only fetch emails from the inbox folder
+ * @param {boolean} [options.unreadOnly] - if true, only fetch unread emails
  * @param {string[]} [options.excludeIds] - message IDs to exclude (already processed in a previous session)
  */
 export async function fetchAndGroupEmails(accessToken, options = {}) {
-  const { from, to, inbox = false, excludeIds = [] } = options;
+  const { from, to, inbox = true, unreadOnly = true, excludeIds = [] } = options;
 
   // Decode JWT claims (no verification, just inspection)
   try {
@@ -111,7 +116,7 @@ export async function fetchAndGroupEmails(accessToken, options = {}) {
   const spinner = ora({ text: chalk.cyan('Connecting to Outlook…'), color: 'cyan' }).start();
 
   try {
-    const allMessages = await fetchAllMessages(accessToken, spinner, from, to, inbox);
+    const allMessages = await fetchAllMessages(accessToken, spinner, from, to, inbox, unreadOnly);
 
     // Filter out already-processed IDs (checkpoint resume)
     const excludeSet = new Set(excludeIds);

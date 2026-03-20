@@ -97,5 +97,6 @@ tokens/
 checkpoint.json
 whitelist.json
 rules.json
+imap-config.json
 reports/
 dist/

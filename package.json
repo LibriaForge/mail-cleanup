@@ -1,7 +1,7 @@
 {
   "name": "mail-cleanup",
-  "version": "1.4.0",
-  "description": "Interactive CLI tool to triage and bulk-manage unread emails from Gmail and Outlook",
+  "version": "1.6.0",
+  "description": "Interactive CLI tool to triage and bulk-manage unread emails from Gmail, Outlook, and IMAP servers",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -19,6 +19,7 @@
     "chalk": "^5.3.0",
     "dotenv": "^16.4.5",
     "googleapis": "^144.0.0",
+    "imapflow": "^1.2.16",
     "inquirer": "^9.3.7",
     "node-fetch": "^3.3.2",
     "open": "^10.1.0",
