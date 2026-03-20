@@ -21,7 +21,11 @@ const tag = `v${version}`;
 
 function run(cmd) {
   console.log(`$ ${cmd}`);
-  execSync(cmd, { stdio: 'inherit' });
+  // Wrap in PowerShell with Chocolatey profile so PATH includes gh, bun, etc.
+  execSync(
+    `powershell -Command "& { Import-Module 'C:/ProgramData/chocolatey/helpers/chocolateyProfile.psm1' -ErrorAction SilentlyContinue; refreshenv; ${cmd.replace(/"/g, '\\"')} }"`,
+    { stdio: 'inherit' }
+  );
 }
 
 // 1. Build
