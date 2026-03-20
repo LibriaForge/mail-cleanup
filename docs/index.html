@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mail Cleanup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #e6edf3; line-height: 1.6; }
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header { background: #161b22; border-bottom: 1px solid #30363d; padding: 1.5rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    header span { background: #238636; color: #fff; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 12px; font-weight: 600; }
+    .hero { max-width: 760px; margin: 5rem auto 4rem; padding: 0 2rem; text-align: center; }
+    .hero h2 { font-size: 2.8rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 1.2rem; background: linear-gradient(135deg, #58a6ff, #79c0ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p { font-size: 1.15rem; color: #8b949e; max-width: 540px; margin: 0 auto 2.5rem; }
+    .badges { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-bottom: 3rem; }
+    .badge { background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.85rem; color: #8b949e; }
+    .badge strong { color: #e6edf3; }
+    .download { display: inline-flex; align-items: center; gap: 0.5rem; background: #238636; color: #fff; padding: 0.85rem 2rem; border-radius: 8px; font-weight: 600; font-size: 1rem; transition: background 0.15s; }
+    .download:hover { background: #2ea043; text-decoration: none; }
+    .features { max-width: 900px; margin: 0 auto 5rem; padding: 0 2rem; }
+    .features h3 { text-align: center; font-size: 1.5rem; font-weight: 700; margin-bottom: 2.5rem; color: #e6edf3; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1.5rem; }
+    .card .icon { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .card h4 { font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; }
+    .card p { font-size: 0.875rem; color: #8b949e; }
+    .providers { max-width: 760px; margin: 0 auto 5rem; padding: 0 2rem; text-align: center; }
+    .providers h3 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; }
+    .providers p { color: #8b949e; margin-bottom: 2rem; }
+    .provider-badges { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
+    .provider-badge { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 0.75rem 1.5rem; font-weight: 600; }
+    footer { border-top: 1px solid #30363d; padding: 2rem; text-align: center; color: #8b949e; font-size: 0.875rem; }
+    footer a { color: #8b949e; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📧 Mail Cleanup</h1>
+  <span>v1.0.0</span>
+</header>
+
+<section class="hero">
+  <h2>Triage your inbox,<br>sender by sender.</h2>
+  <p>An open-source CLI tool to bulk-clean Gmail and Outlook inboxes with AI-powered classification — delete, archive, or keep, in seconds.</p>
+  <div class="badges">
+    <div class="badge"><strong>Windows</strong> · x64</div>
+    <div class="badge"><strong>No install</strong> · single .exe</div>
+    <div class="badge"><strong>Open source</strong> · MIT</div>
+  </div>
+  <a class="download" href="https://github.com/LibriaForge/mail-cleanup/releases/latest">
+    ⬇ Download for Windows
+  </a>
+</section>
+
+<section class="features">
+  <h3>How it works</h3>
+  <div class="grid">
+    <div class="card">
+      <div class="icon">⚡</div>
+      <h4>Keyword pre-pass</h4>
+      <p>Instantly classifies obvious noise — marketing, noreply, bulk senders — with no API calls needed.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🤖</div>
+      <h4>AI classification</h4>
+      <p>Claude Haiku analyses remaining senders by name and subject lines, suggesting delete, archive, or keep.</p>
+    </div>
+    <div class="card">
+      <div class="icon">📁</div>
+      <h4>Category folders</h4>
+      <p>Archived emails are automatically routed to named folders: Newsletters, Receipts, Alerts, Dev, and more.</p>
+    </div>
+    <div class="card">
+      <div class="icon">💾</div>
+      <h4>Saved rules</h4>
+      <p>Save decisions per sender. Next run applies them instantly — no repeated prompts.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🔕</div>
+      <h4>Unsubscribe + Delete</h4>
+      <p>Follows the List-Unsubscribe header automatically, then deletes the emails.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🔒</div>
+      <h4>Private by design</h4>
+      <p>No server. Tokens stored locally. Only sender names and subject lines ever leave your machine.</p>
+    </div>
+  </div>
+</section>
+
+<section class="providers">
+  <h3>Supported providers</h3>
+  <p>Authenticate with your own account — no passwords are ever stored.</p>
+  <div class="provider-badges">
+    <div class="provider-badge">✉ Gmail — OAuth 2.0</div>
+    <div class="provider-badge">✉ Outlook — Device code flow</div>
+  </div>
+</section>
+
+<footer>
+  <p>
+    <a href="privacy.html">Privacy Policy</a> &nbsp;·&nbsp;
+    <a href="terms.html">Terms of Service</a> &nbsp;·&nbsp;
+    <a href="https://github.com/LibriaForge/mail-cleanup">GitHub</a>
+  </p>
+  <p style="margin-top: 0.5rem;">© 2026 LibriaForge. Released under the MIT License.</p>
+</footer>
+
+</body>
+</html>
