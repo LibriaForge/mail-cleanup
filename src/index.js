@@ -33,14 +33,17 @@ if (VERSION === 'unknown') VERSION = '1.0.0';
  * Supported flags:
  *   --dry-run            never call deleteEmails/archiveEmails
  *   --auto               skip all interactive prompts
- *   --since=YYYY-MM-DD   only process emails on or before this date
+ *   --from=YYYY-MM-DD    only process emails received on or after this date
+ *   --to=YYYY-MM-DD      only process emails received on or before this date
  *   --whitelist          open the whitelist manager
  *
- * @returns {{ dryRun: boolean, auto: boolean, since: string|null, whitelist: boolean, report: boolean }}
+ * @returns {{ dryRun: boolean, auto: boolean, from: string|null, to: string|null, whitelist: boolean, report: boolean }}
  */
 function parseFlags() {
   const args = process.argv.slice(2);
-  const flags = { dryRun: false, auto: false, since: null, whitelist: false, report: false };
+  const flags = { dryRun: false, auto: false, from: null, to: null, whitelist: false, report: false };
+
+  const isValidDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
   for (const arg of args) {
     if (arg === '--version' || arg === '-v') {
@@ -54,14 +57,14 @@ function parseFlags() {
       flags.whitelist = true;
     } else if (arg === '--report') {
       flags.report = true;
-    } else if (arg.startsWith('--since=')) {
-      const dateStr = arg.slice('--since='.length).trim();
-      // Basic ISO date validation: YYYY-MM-DD
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-        flags.since = dateStr;
-      } else {
-        console.log(chalk.yellow(`Warning: --since value "${dateStr}" is not a valid YYYY-MM-DD date. Ignoring.`));
-      }
+    } else if (arg.startsWith('--from=')) {
+      const dateStr = arg.slice('--from='.length).trim();
+      if (isValidDate(dateStr)) flags.from = dateStr;
+      else console.log(chalk.yellow(`Warning: --from value "${dateStr}" is not a valid YYYY-MM-DD date. Ignoring.`));
+    } else if (arg.startsWith('--to=')) {
+      const dateStr = arg.slice('--to='.length).trim();
+      if (isValidDate(dateStr)) flags.to = dateStr;
+      else console.log(chalk.yellow(`Warning: --to value "${dateStr}" is not a valid YYYY-MM-DD date. Ignoring.`));
     }
   }
 
@@ -112,7 +115,8 @@ function printBanner(flags) {
   console.log(chalk.bold('  Flags:'));
   console.log(`  ${chalk.cyan('--dry-run')}          Preview actions without deleting or archiving anything`);
   console.log(`  ${chalk.cyan('--auto')}              Apply all decisions automatically, no prompts`);
-  console.log(`  ${chalk.cyan('--since=YYYY-MM-DD')}  Only process emails received on or before this date`);
+  console.log(`  ${chalk.cyan('--from=YYYY-MM-DD')}   Only process emails received on or after this date`);
+  console.log(`  ${chalk.cyan('--to=YYYY-MM-DD')}     Only process emails received on or before this date`);
   console.log(`  ${chalk.cyan('--whitelist')}         Manage the sender whitelist (always kept)`);
   console.log(`  ${chalk.cyan('--report')}            Write a JSON summary to reports/YYYY-MM-DD-HH-MM.json`);
   console.log(`  ${chalk.cyan('DEBUG=1')}             Show full error stack traces`);
@@ -186,7 +190,7 @@ async function runGmail(flags) {
     }
   }
 
-  const groups = await gmailProvider.fetchAndGroupEmails(auth, { since: flags.since, excludeIds });
+  const groups = await gmailProvider.fetchAndGroupEmails(auth, { from: flags.from, to: flags.to, excludeIds });
   await runReviewLoop(groups, gmailProvider, auth, flags, checkpoint, 'gmail');
 }
 
@@ -211,7 +215,7 @@ async function runOutlook(flags) {
     }
   }
 
-  const groups = await outlookProvider.fetchAndGroupEmails(accessToken, { since: flags.since, excludeIds });
+  const groups = await outlookProvider.fetchAndGroupEmails(accessToken, { from: flags.from, to: flags.to, excludeIds });
   await runReviewLoop(groups, outlookProvider, accessToken, flags, checkpoint, 'outlook');
 }
 

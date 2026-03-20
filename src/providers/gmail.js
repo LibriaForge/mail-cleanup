@@ -61,24 +61,30 @@ function parseFrom(fromHeader) {
  *
  * @param {object} gmail - authenticated Gmail client
  * @param {object} spinner - ora spinner
- * @param {string|undefined} since - optional ISO date string (YYYY-MM-DD); if set, only fetch emails
- *   received before (and on) this date using Gmail's `before:` operator.
+ * @param {string|undefined} from - optional ISO date string (YYYY-MM-DD); only fetch emails on or after this date
+ * @param {string|undefined} to   - optional ISO date string (YYYY-MM-DD); only fetch emails on or before this date
  */
-async function fetchAllMessageIds(gmail, spinner, since) {
+async function fetchAllMessageIds(gmail, spinner, from, to) {
   const ids = [];
   let pageToken;
   let page = 0;
 
+  const pad = (n) => String(n).padStart(2, '0');
+  const toGmailDate = (d) => `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+
   // Build the query string
   let query = 'in:all -in:trash';
-  if (since) {
-    // Gmail's before: operator uses YYYY/MM/DD format and is exclusive of the given date,
-    // so we add one day to make the filter inclusive of the requested date.
-    const d = new Date(since);
+  if (from) {
+    // Gmail's after: operator is exclusive, so subtract one day to make it inclusive.
+    const d = new Date(from);
+    d.setDate(d.getDate() - 1);
+    query += ` after:${toGmailDate(d)}`;
+  }
+  if (to) {
+    // Gmail's before: operator is exclusive, so add one day to make it inclusive.
+    const d = new Date(to);
     d.setDate(d.getDate() + 1);
-    const pad = (n) => String(n).padStart(2, '0');
-    const beforeStr = `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
-    query += ` before:${beforeStr}`;
+    query += ` before:${toGmailDate(d)}`;
   }
 
   do {
@@ -128,17 +134,18 @@ async function fetchMetadataBatch(gmail, ids) {
  *
  * @param {object} auth - authenticated OAuth2 client
  * @param {object} [options]
- * @param {string} [options.since] - ISO date string (YYYY-MM-DD); only include emails on or before this date
+ * @param {string} [options.from] - ISO date string (YYYY-MM-DD); only include emails on or after this date
+ * @param {string} [options.to]   - ISO date string (YYYY-MM-DD); only include emails on or before this date
  * @param {string[]} [options.excludeIds] - message IDs to exclude (already processed in a previous session)
  */
 export async function fetchAndGroupEmails(auth, options = {}) {
-  const { since, excludeIds = [] } = options;
+  const { from, to, excludeIds = [] } = options;
   const gmail = google.gmail({ version: 'v1', auth });
   const spinner = ora({ text: chalk.cyan('Connecting to Gmail…'), color: 'cyan' }).start();
 
   try {
     // Step 1: Get all message IDs
-    const allIds = await fetchAllMessageIds(gmail, spinner, since);
+    const allIds = await fetchAllMessageIds(gmail, spinner, from, to);
 
     // Filter out already-processed IDs (checkpoint resume)
     const excludeSet = new Set(excludeIds);
