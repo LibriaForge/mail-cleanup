@@ -53,6 +53,7 @@ async function promptAction(group, { canUnsubscribe = false, suggestedFolder = n
 
   const choices = [
     { name: `Delete All   — permanently remove all ${fmt(group.count)} emails`, value: 'delete' },
+    { name: `Mark as Spam — move to spam/junk and train provider filter`, value: 'spam' },
   ];
   if (canUnsubscribe) {
     choices.push({ name: `Unsubscribe + Delete — unsubscribe then delete all`, value: 'unsubscribe_delete' });
@@ -85,13 +86,16 @@ async function executeAction(action, group, provider, authToken, dryRun = false,
     return;
   }
 
-  const verb = action === 'delete' ? 'Deleting' : folder ? `Moving to ${folder}` : 'Archiving';
+  const verb = action === 'delete' ? 'Deleting' : action === 'spam' ? 'Marking as spam' : folder ? `Moving to ${folder}` : 'Archiving';
   const spinner = ora({ text: chalk.cyan(`${verb} ${fmt(group.count)} email(s)…`), color: 'cyan' }).start();
 
   try {
     if (action === 'delete') {
       await provider.deleteEmails(authToken, group.ids);
       spinner.succeed(chalk.red(`Deleted ${fmt(group.count)} email(s) from ${group.email}.`));
+    } else if (action === 'spam') {
+      await provider.markAsSpam(authToken, group.ids);
+      spinner.succeed(chalk.magenta(`Marked ${fmt(group.count)} email(s) from ${group.email} as spam.`));
     } else if (action === 'archive') {
       if (folder && provider.moveToFolder) {
         await provider.moveToFolder(authToken, group.ids, folder);
@@ -108,12 +112,13 @@ async function executeAction(action, group, provider, authToken, dryRun = false,
 }
 
 function printSummary(stats) {
-  const { deleted, archived, kept, skipped, total } = stats;
+  const { deleted, spam, archived, kept, skipped, total } = stats;
   console.log('');
   console.log(chalk.bold.white('━'.repeat(52)));
   console.log(chalk.bold.white('  SESSION SUMMARY'));
   console.log(chalk.bold.white('━'.repeat(52)));
   console.log(`  ${chalk.red('Deleted')}  : ${fmt(deleted.emails)} email(s) from ${fmt(deleted.senders)} sender(s)`);
+  console.log(`  ${chalk.magenta('Spam')}     : ${fmt(spam.emails)} email(s) from ${fmt(spam.senders)} sender(s)`);
   console.log(`  ${chalk.blue('Archived')} : ${fmt(archived.emails)} email(s) from ${fmt(archived.senders)} sender(s)`);
   console.log(`  ${chalk.green('Kept')}     : ${fmt(kept.emails)} email(s) from ${fmt(kept.senders)} sender(s)`);
   console.log(`  ${chalk.gray('Skipped')}  : ${fmt(skipped.emails)} email(s) from ${fmt(skipped.senders)} sender(s)`);
@@ -123,7 +128,7 @@ function printSummary(stats) {
 }
 
 function recordStat(stats, action, group) {
-  const key = action === 'delete' ? 'deleted' : action === 'archive' ? 'archived' : action === 'keep' ? 'kept' : 'skipped';
+  const key = action === 'delete' ? 'deleted' : action === 'spam' ? 'spam' : action === 'archive' ? 'archived' : action === 'keep' ? 'kept' : 'skipped';
   stats[key].senders++;
   stats[key].emails += group.count;
   stats.total.senders++;
@@ -161,6 +166,7 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
 
   const stats = checkpoint?.stats ?? {
     deleted:  { senders: 0, emails: 0 },
+    spam:     { senders: 0, emails: 0 },
     archived: { senders: 0, emails: 0 },
     kept:     { senders: 0, emails: 0 },
     skipped:  { senders: 0, emails: 0 },
@@ -318,6 +324,7 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
         const result = await classifyWithClaude(group, apiKey);
         process.stdout.write(
           result.action === 'delete'  ? chalk.red(`${result.action} (${result.confidence})\n`)
+          : result.action === 'spam'    ? chalk.magenta(`${result.action} (${result.confidence})\n`)
           : result.action === 'archive' ? chalk.blue(`${result.action} (${result.confidence})\n`)
           : result.action === 'keep'    ? chalk.green(`${result.action} (${result.confidence})\n`)
           : chalk.yellow(`${result.action} (${result.confidence})\n`)
@@ -344,7 +351,7 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
   if (highConfidence.length > 0) {
     console.log(chalk.bold(`\nAuto-applying ${fmt(highConfidence.length)} high-confidence Claude decision(s)…`));
     for (const { group, result } of highConfidence) {
-      const actionLabel = result.action === 'delete' ? chalk.red('Delete') : result.action === 'archive' ? chalk.blue('Archive') : chalk.green('Keep');
+      const actionLabel = result.action === 'delete' ? chalk.red('Delete') : result.action === 'spam' ? chalk.magenta('Spam') : result.action === 'archive' ? chalk.blue('Archive') : chalk.green('Keep');
       console.log(`  → ${actionLabel}: ${chalk.gray(group.email)} — ${chalk.italic(result.reason)}`);
     }
 
@@ -396,7 +403,7 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
         console.log(chalk.gray(`  Auto (low/ask): skip — ${group.email}`));
       }
       const folder = (action === 'archive' && result.category && CATEGORY_FOLDERS[result.category]) ? CATEGORY_FOLDERS[result.category] : null;
-      if (action === 'delete' || action === 'archive') {
+      if (action === 'delete' || action === 'spam' || action === 'archive') {
         try { await executeAction(action, group, provider, authToken, dryRun, folder); } catch { action = 'skip'; }
       }
       recordStat(stats, action, group);
@@ -424,7 +431,7 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
 
     // Show Claude's recommendation
     if (result.action !== 'ask' || result.confidence !== 'low' || result.reason !== 'AI classification not available.') {
-      const recColor = result.action === 'delete' ? chalk.red : result.action === 'archive' ? chalk.blue : result.action === 'keep' ? chalk.green : chalk.yellow;
+      const recColor = result.action === 'delete' ? chalk.red : result.action === 'spam' ? chalk.magenta : result.action === 'archive' ? chalk.blue : result.action === 'keep' ? chalk.green : chalk.yellow;
       console.log(`  ${chalk.bold('Claude:')} ${recColor(result.action.toUpperCase())} (${result.confidence} confidence)`);
       if (result.category) console.log(`  ${chalk.bold('Category:')} ${result.category}`);
       console.log(`  ${chalk.italic.gray(result.reason)}`);

@@ -97,6 +97,7 @@ The output binary is fully self-contained. Distribute it alongside a `.env` file
 | `--auto` | Apply all high/medium-confidence decisions automatically. Low-confidence and ambiguous senders are skipped — run without `--auto` afterwards to review them interactively |
 | `--from=YYYY-MM-DD` | Only process emails received on or after this date |
 | `--to=YYYY-MM-DD` | Only process emails received on or before this date |
+| `--inbox` | Only process emails in the inbox — ignores all other folders and labels |
 | `--whitelist` | Open the whitelist manager to add/remove always-kept senders |
 | `--report` | Save a JSON session report to `reports/YYYY-MM-DD-HH-MM.json` |
 | `DEBUG=1` | Show full error stack traces on failure |
@@ -113,6 +114,7 @@ npm start -- --auto --report
 | Action | Description |
 |--------|-------------|
 | Delete | Permanently removes all emails from that sender |
+| Mark as Spam | Moves emails to spam/junk and trains the provider's filter |
 | Unsubscribe + Delete | Follows the `List-Unsubscribe` header or scans the email body for an unsubscribe link, opens it in your browser, then deletes |
 | Archive | Moves emails to a named category folder and marks as read |
 | Keep | Leaves emails exactly as they are |
@@ -150,6 +152,12 @@ Decisions are saved to `rules.json` (gitignored). On subsequent runs the saved-r
 ```
 
 Wildcard domain entries (`*@domain.com`) match all senders from that domain.
+
+## Support
+
+If this tool saves you time, consider supporting development:
+
+[![Donate on Liberapay](https://liberapay.com/assets/widgets/donate.svg)](https://liberapay.com/ita.dev)
 
 ## Confidentiality
 

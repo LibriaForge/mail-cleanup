@@ -39,10 +39,11 @@ async function graphRequest(accessToken, path, options = {}) {
  *
  * @param {string} accessToken
  * @param {object} spinner - ora spinner
- * @param {string|undefined} from - optional ISO date string (YYYY-MM-DD); only fetch emails on or after this date
- * @param {string|undefined} to   - optional ISO date string (YYYY-MM-DD); only fetch emails on or before this date
+ * @param {string|undefined} from  - optional ISO date string (YYYY-MM-DD); only fetch emails on or after this date
+ * @param {string|undefined} to    - optional ISO date string (YYYY-MM-DD); only fetch emails on or before this date
+ * @param {boolean} inbox          - if true, only fetch emails from the inbox folder
  */
-async function fetchAllMessages(accessToken, spinner, from, to) {
+async function fetchAllMessages(accessToken, spinner, from, to, inbox) {
   // Get Deleted Items folder ID so we can exclude it
   let deletedItemsId = null;
   try {
@@ -64,10 +65,11 @@ async function fetchAllMessages(accessToken, spinner, from, to) {
   const filterStr = filterParts.length > 0 ? filterParts.join(' and ') : null;
 
   const messages = [];
+  const basePath = inbox ? '/me/mailFolders/inbox/messages' : '/me/messages';
   const query = filterStr
     ? `?$filter=${encodeURIComponent(filterStr)}&$select=id,from,subject&$top=50`
     : `?$select=id,from,subject&$top=50`;
-  let nextUrl = `${GRAPH_BASE}/me/messages${query}`;
+  let nextUrl = `${GRAPH_BASE}${basePath}${query}`;
 
   let page = 0;
   while (nextUrl) {
@@ -91,12 +93,13 @@ async function fetchAllMessages(accessToken, spinner, from, to) {
  *
  * @param {string} accessToken
  * @param {object} [options]
- * @param {string} [options.from] - ISO date string (YYYY-MM-DD); only include emails on or after this date
- * @param {string} [options.to]   - ISO date string (YYYY-MM-DD); only include emails on or before this date
+ * @param {string} [options.from]   - ISO date string (YYYY-MM-DD); only include emails on or after this date
+ * @param {string} [options.to]     - ISO date string (YYYY-MM-DD); only include emails on or before this date
+ * @param {boolean} [options.inbox] - if true, only fetch emails from the inbox folder
  * @param {string[]} [options.excludeIds] - message IDs to exclude (already processed in a previous session)
  */
 export async function fetchAndGroupEmails(accessToken, options = {}) {
-  const { from, to, excludeIds = [] } = options;
+  const { from, to, inbox = false, excludeIds = [] } = options;
 
   // Decode JWT claims (no verification, just inspection)
   try {
@@ -108,7 +111,7 @@ export async function fetchAndGroupEmails(accessToken, options = {}) {
   const spinner = ora({ text: chalk.cyan('Connecting to Outlook…'), color: 'cyan' }).start();
 
   try {
-    const allMessages = await fetchAllMessages(accessToken, spinner, from, to);
+    const allMessages = await fetchAllMessages(accessToken, spinner, from, to, inbox);
 
     // Filter out already-processed IDs (checkpoint resume)
     const excludeSet = new Set(excludeIds);
@@ -293,6 +296,25 @@ export async function moveToFolder(accessToken, ids, folderName) {
       url: `/me/messages/${encodeURIComponent(id)}/move`,
       headers: { 'Content-Type': 'application/json' },
       body: { destinationId: folderId },
+    }));
+    await sendBatch(accessToken, requests);
+  }
+}
+
+/** Move messages to the Junk Email folder using Graph batch. */
+export async function markAsSpam(accessToken, ids) {
+  if (ids.length === 0) return;
+  const res = await graphRequest(accessToken, '/me/mailFolders/junkemail?$select=id');
+  const junkId = res?.id;
+  if (!junkId) return;
+  for (let i = 0; i < ids.length; i += GRAPH_BATCH_SIZE) {
+    const chunk = ids.slice(i, i + GRAPH_BATCH_SIZE);
+    const requests = chunk.map((id, idx) => ({
+      id: String(idx + 1),
+      method: 'POST',
+      url: `/me/messages/${encodeURIComponent(id)}/move`,
+      headers: { 'Content-Type': 'application/json' },
+      body: { destinationId: junkId },
     }));
     await sendBatch(accessToken, requests);
   }

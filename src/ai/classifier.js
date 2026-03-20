@@ -177,14 +177,15 @@ ${subjectList}
 
 Reply with JSON only, no explanation outside the JSON:
 {
-  "action": "delete" | "archive" | "keep" | "ask",
+  "action": "delete" | "spam" | "archive" | "keep" | "ask",
   "confidence": "high" | "medium" | "low",
   "reason": "one short sentence",
   "category": "newsletters" | "receipts" | "alerts" | "social" | "finance" | "dev" | "shopping" | "travel" | "personal" | "work" | "other"
 }
 
 Rules:
-- delete: marketing, newsletters, promotions, social digests, crypto/trading digests, bulk announcements, no-reply bulk mail, expired offers
+- spam: unsolicited bulk mail, newsletters the user never signed up for, phishing attempts, persistent marketing — moves to spam/junk and trains the provider filter
+- delete: one-off promotional emails, expired offers, known bulk senders already in spam
 - archive: automated but potentially useful — receipts, order confirmations, account alerts, shipping, billing, bank statements
 - keep: anything personal, anything needing a reply, job-related, legal, medical, financial advice from a real person
 - ask: genuinely ambiguous — mixed signals, unclear sender purpose
@@ -225,7 +226,7 @@ Rules:
 
   const parsed = JSON.parse(jsonMatch[0]);
 
-  const validActions = ['delete', 'archive', 'keep', 'ask'];
+  const validActions = ['delete', 'spam', 'archive', 'keep', 'ask'];
   const validConfidences = ['high', 'medium', 'low'];
   const validCategories = ['newsletters', 'receipts', 'alerts', 'social', 'finance', 'dev', 'shopping', 'travel', 'personal', 'work', 'other'];
 

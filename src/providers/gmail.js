@@ -61,10 +61,11 @@ function parseFrom(fromHeader) {
  *
  * @param {object} gmail - authenticated Gmail client
  * @param {object} spinner - ora spinner
- * @param {string|undefined} from - optional ISO date string (YYYY-MM-DD); only fetch emails on or after this date
- * @param {string|undefined} to   - optional ISO date string (YYYY-MM-DD); only fetch emails on or before this date
+ * @param {string|undefined} from  - optional ISO date string (YYYY-MM-DD); only fetch emails on or after this date
+ * @param {string|undefined} to    - optional ISO date string (YYYY-MM-DD); only fetch emails on or before this date
+ * @param {boolean} inbox          - if true, only fetch emails in the inbox
  */
-async function fetchAllMessageIds(gmail, spinner, from, to) {
+async function fetchAllMessageIds(gmail, spinner, from, to, inbox) {
   const ids = [];
   let pageToken;
   let page = 0;
@@ -73,7 +74,7 @@ async function fetchAllMessageIds(gmail, spinner, from, to) {
   const toGmailDate = (d) => `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
 
   // Build the query string
-  let query = 'in:all -in:trash';
+  let query = inbox ? 'in:inbox' : 'in:all -in:trash';
   if (from) {
     // Gmail's after: operator is exclusive, so subtract one day to make it inclusive.
     const d = new Date(from);
@@ -134,18 +135,19 @@ async function fetchMetadataBatch(gmail, ids) {
  *
  * @param {object} auth - authenticated OAuth2 client
  * @param {object} [options]
- * @param {string} [options.from] - ISO date string (YYYY-MM-DD); only include emails on or after this date
- * @param {string} [options.to]   - ISO date string (YYYY-MM-DD); only include emails on or before this date
+ * @param {string} [options.from]  - ISO date string (YYYY-MM-DD); only include emails on or after this date
+ * @param {string} [options.to]    - ISO date string (YYYY-MM-DD); only include emails on or before this date
+ * @param {boolean} [options.inbox] - if true, only fetch emails in the inbox
  * @param {string[]} [options.excludeIds] - message IDs to exclude (already processed in a previous session)
  */
 export async function fetchAndGroupEmails(auth, options = {}) {
-  const { from, to, excludeIds = [] } = options;
+  const { from, to, inbox = false, excludeIds = [] } = options;
   const gmail = google.gmail({ version: 'v1', auth });
   const spinner = ora({ text: chalk.cyan('Connecting to Gmail…'), color: 'cyan' }).start();
 
   try {
     // Step 1: Get all message IDs
-    const allIds = await fetchAllMessageIds(gmail, spinner, from, to);
+    const allIds = await fetchAllMessageIds(gmail, spinner, from, to, inbox);
 
     // Filter out already-processed IDs (checkpoint resume)
     const excludeSet = new Set(excludeIds);
@@ -284,6 +286,23 @@ export async function moveToFolder(auth, ids, folderName) {
       gmail.users.messages.batchModify({
         userId: 'me',
         requestBody: { ids: chunk, addLabelIds: [labelId], removeLabelIds: ['INBOX', 'UNREAD'] },
+      })
+    );
+    if (i + CHUNK < ids.length) await sleep(500);
+  }
+}
+
+/** Move messages to the Spam folder and remove INBOX/UNREAD labels. */
+export async function markAsSpam(auth, ids) {
+  if (ids.length === 0) return;
+  const gmail = google.gmail({ version: 'v1', auth });
+  const CHUNK = 1000;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    await withRetry(() =>
+      gmail.users.messages.batchModify({
+        userId: 'me',
+        requestBody: { ids: chunk, addLabelIds: ['SPAM'], removeLabelIds: ['INBOX', 'UNREAD'] },
       })
     );
     if (i + CHUNK < ids.length) await sleep(500);
