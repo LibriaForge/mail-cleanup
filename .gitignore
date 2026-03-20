@@ -89,6 +89,7 @@ Thumbs.db
 /.claude/
 
 # App-specific
+src/credentials.js
 tokens/
 checkpoint.json
 whitelist.json

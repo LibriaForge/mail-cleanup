@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, OUTLOOK_CLIENT_ID } from './credentials.js';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { join } from 'path';
@@ -74,21 +75,21 @@ function checkEnv(provider) {
   const missing = [];
 
   if (provider === 'gmail') {
-    if (!process.env.GMAIL_CLIENT_ID) missing.push('GMAIL_CLIENT_ID');
-    if (!process.env.GMAIL_CLIENT_SECRET) missing.push('GMAIL_CLIENT_SECRET');
+    if (!GMAIL_CLIENT_ID && !process.env.GMAIL_CLIENT_ID) missing.push('GMAIL_CLIENT_ID');
+    if (!GMAIL_CLIENT_SECRET && !process.env.GMAIL_CLIENT_SECRET) missing.push('GMAIL_CLIENT_SECRET');
   } else if (provider === 'outlook') {
-    if (!process.env.OUTLOOK_CLIENT_ID) missing.push('OUTLOOK_CLIENT_ID');
+    if (!OUTLOOK_CLIENT_ID && !process.env.OUTLOOK_CLIENT_ID) missing.push('OUTLOOK_CLIENT_ID');
   }
 
   if (missing.length > 0) {
     console.log('');
-    console.log(chalk.red.bold('Missing required environment variables:'));
+    console.log(chalk.red.bold('Missing app credentials:'));
     for (const key of missing) {
       console.log(chalk.red(`  • ${key}`));
     }
     console.log('');
-    console.log(chalk.yellow('Create a .env file in the project root.'));
-    console.log(chalk.yellow('See .env.example for setup instructions.'));
+    console.log(chalk.yellow('This binary was not built with app credentials baked in.'));
+    console.log(chalk.yellow('Set the missing variables in a .env file next to the executable.'));
     process.exit(1);
   }
 }
@@ -117,12 +118,8 @@ function printBanner(flags) {
   console.log(`  ${chalk.cyan('DEBUG=1')}             Show full error stack traces`);
   console.log('');
 
-  if (!existsSync(ENV_PATH)) {
-    console.log(
-      chalk.yellow(
-        'Tip: No .env file found. Copy .env.example to .env and fill in your credentials.\n'
-      )
-    );
+  if (!existsSync(ENV_PATH) && process.env.ANTHROPIC_API_KEY === undefined) {
+    console.log(chalk.gray('  Tip: Add ANTHROPIC_API_KEY=... to a .env file next to the executable to enable AI classification.\n'));
   }
 }
 

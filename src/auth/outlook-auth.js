@@ -2,6 +2,7 @@ import { PublicClientApplication } from '@azure/msal-node';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import chalk from 'chalk';
+import { OUTLOOK_CLIENT_ID as BAKED_CLIENT_ID } from '../credentials.js';
 
 const TOKENS_DIR = join(process.cwd(), 'tokens');
 const MSAL_CACHE_PATH = join(TOKENS_DIR, 'outlook-msal-cache.json');
@@ -36,7 +37,7 @@ function makeCachePlugin() {
 }
 
 export async function authenticateOutlook() {
-  const clientId = process.env.OUTLOOK_CLIENT_ID;
+  const clientId = BAKED_CLIENT_ID || process.env.OUTLOOK_CLIENT_ID;
 
   if (!clientId) {
     throw new Error(

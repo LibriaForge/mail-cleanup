@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import open from 'open';
 import chalk from 'chalk';
+import { GMAIL_CLIENT_ID as BAKED_CLIENT_ID, GMAIL_CLIENT_SECRET as BAKED_CLIENT_SECRET } from '../credentials.js';
 
 const TOKEN_PATH = join(process.cwd(), 'tokens/gmail-token.json');
 const TOKENS_DIR = join(process.cwd(), 'tokens');
@@ -15,8 +16,8 @@ const SCOPES = [
 const REDIRECT_URI = 'http://localhost:3000/oauth2callback';
 
 export function createOAuth2Client() {
-  const clientId = process.env.GMAIL_CLIENT_ID;
-  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+  const clientId = BAKED_CLIENT_ID || process.env.GMAIL_CLIENT_ID;
+  const clientSecret = BAKED_CLIENT_SECRET || process.env.GMAIL_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
     throw new Error(
