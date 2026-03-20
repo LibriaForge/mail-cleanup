@@ -155,13 +155,13 @@ export function classifyByKeywords(group) {
 // ---------------------------------------------------------------------------
 
 /**
- * Classify a sender group using Claude Haiku.
+ * Classify a sender group using Claude Haiku via direct fetch (no SDK dependency).
  *
  * @param {{ email: string, name: string, count: number, subjects: string[] }} group
- * @param {import('@anthropic-ai/sdk').Anthropic} client  Anthropic SDK client instance
- * @returns {Promise<{ action: 'delete'|'archive'|'keep'|'ask', confidence: 'high'|'medium'|'low', reason: string }>}
+ * @param {string} apiKey  Anthropic API key
+ * @returns {Promise<{ action: 'delete'|'archive'|'keep'|'ask', confidence: 'high'|'medium'|'low', reason: string, category: string }>}
  */
-export async function classifyWithClaude(group, client) {
+export async function classifyWithClaude(group, apiKey) {
   const { name, email, count, subjects = [] } = group;
 
   const subjectList = subjects.length > 0
@@ -193,18 +193,31 @@ Rules:
 - confidence low or action=ask = show recommendation, let user pick from full menu
 - category: best-fit category label for this sender`;
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 256,
-    messages: [{ role: 'user', content: prompt }],
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 256,
+      messages: [{ role: 'user', content: prompt }],
+    }),
   });
 
-  const text = message.content
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`${res.status} ${body}`);
+  }
+
+  const data = await res.json();
+  const text = (data.content ?? [])
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
     .join('');
 
-  // Extract JSON — Claude sometimes wraps it in a code fence
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error(`Claude returned non-JSON response: ${text.slice(0, 120)}`);
@@ -212,15 +225,14 @@ Rules:
 
   const parsed = JSON.parse(jsonMatch[0]);
 
-  // Validate and normalise fields
   const validActions = ['delete', 'archive', 'keep', 'ask'];
   const validConfidences = ['high', 'medium', 'low'];
   const validCategories = ['newsletters', 'receipts', 'alerts', 'social', 'finance', 'dev', 'shopping', 'travel', 'personal', 'work', 'other'];
 
-  const action = validActions.includes(parsed.action) ? parsed.action : 'ask';
-  const confidence = validConfidences.includes(parsed.confidence) ? parsed.confidence : 'low';
-  const reason = typeof parsed.reason === 'string' ? parsed.reason : 'No reason provided.';
-  const category = validCategories.includes(parsed.category) ? parsed.category : 'other';
-
-  return { action, confidence, reason, category };
+  return {
+    action: validActions.includes(parsed.action) ? parsed.action : 'ask',
+    confidence: validConfidences.includes(parsed.confidence) ? parsed.confidence : 'low',
+    reason: typeof parsed.reason === 'string' ? parsed.reason : 'No reason provided.',
+    category: validCategories.includes(parsed.category) ? parsed.category : 'other',
+  };
 }

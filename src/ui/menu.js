@@ -1,7 +1,6 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
-import Anthropic from '@anthropic-ai/sdk';
 import { createInterface } from 'readline';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -301,31 +300,22 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
   // Stage 2: Claude API pass
   // -------------------------------------------------------------------------
 
-  let claudeClient = null;
-  if (reviewGroups.length > 0) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (apiKey) {
-      try {
-        claudeClient = new Anthropic({ apiKey, fetch: globalThis.fetch });
-      } catch {
-        console.log(chalk.yellow('\n  Failed to initialise Anthropic client — skipping AI classification.'));
-      }
-    } else {
-      console.log(chalk.yellow('\n  ANTHROPIC_API_KEY not set — skipping AI classification.'));
-    }
+  const apiKey = reviewGroups.length > 0 ? process.env.ANTHROPIC_API_KEY : null;
+  if (reviewGroups.length > 0 && !apiKey) {
+    console.log(chalk.yellow('\n  ANTHROPIC_API_KEY not set — skipping AI classification.'));
   }
 
   const highConfidence = [];
   const needsReview = [];
 
-  if (claudeClient && reviewGroups.length > 0) {
+  if (apiKey && reviewGroups.length > 0) {
     console.log(chalk.bold(`\nConsulting Claude for remaining ${fmt(reviewGroups.length)} sender(s)…`));
 
     for (let i = 0; i < reviewGroups.length; i++) {
       const group = reviewGroups[i];
       process.stdout.write(chalk.gray(`  ${i + 1}/${reviewGroups.length} ${group.email}… `));
       try {
-        const result = await classifyWithClaude(group, claudeClient);
+        const result = await classifyWithClaude(group, apiKey);
         process.stdout.write(
           result.action === 'delete'  ? chalk.red(`${result.action} (${result.confidence})\n`)
           : result.action === 'archive' ? chalk.blue(`${result.action} (${result.confidence})\n`)
