@@ -65,3 +65,27 @@ try {
 }
 
 console.log(`\nDone! Release ${tag} published.`);
+
+// 4. Prune old releases — keep only the 2 most recent
+const KEEP = 2;
+try {
+  const listJson = execSync(
+    `powershell -Command "& { Import-Module 'C:/ProgramData/chocolatey/helpers/chocolateyProfile.psm1' -ErrorAction SilentlyContinue; refreshenv; gh release list --json tagName,createdAt --limit 100 }"`,
+    { encoding: 'utf-8' }
+  );
+  const releases = JSON.parse(listJson).sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+  const toDelete = releases.slice(KEEP);
+  if (toDelete.length === 0) {
+    console.log('No old releases to prune.');
+  } else {
+    console.log(`\nPruning ${toDelete.length} old release(s)…`);
+    for (const rel of toDelete) {
+      console.log(`  Deleting release ${rel.tagName}…`);
+      run(`gh release delete ${rel.tagName} --yes --cleanup-tag`);
+    }
+  }
+} catch (err) {
+  console.warn(`Warning: could not prune old releases — ${err.message}`);
+}
