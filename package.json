@@ -9,7 +9,8 @@
     "build": "bun build --compile src/index.js --outfile dist/mail-cleanup",
     "build:win": "bun build --compile src/index.js --outfile dist/mail-cleanup.exe --target bun-windows-x64 && node scripts/patch-exe.mjs",
     "build:mac": "bun build --compile src/index.js --outfile dist/mail-cleanup-mac --target bun-darwin-x64",
-    "build:linux": "bun build --compile src/index.js --outfile dist/mail-cleanup-linux --target bun-linux-x64"
+    "build:linux": "bun build --compile src/index.js --outfile dist/mail-cleanup-linux --target bun-linux-x64",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
