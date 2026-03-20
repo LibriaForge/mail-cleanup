@@ -1,18 +1,27 @@
 import 'dotenv/config';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { join } from 'path';
+import { existsSync, readFileSync } from 'fs';
 import { createInterface } from 'readline';
 import { loadCheckpoint, clearCheckpoint } from './checkpoint.js';
 import { manageWhitelist } from './whitelist.js';
+import * as gmailAuth from './auth/gmail-auth.js';
+import * as gmailProvider from './providers/gmail.js';
+import * as outlookAuth from './auth/outlook-auth.js';
+import * as outlookProvider from './providers/outlook.js';
+import { runReviewLoop } from './ui/menu.js';
 
-// Lazily imported based on user choice
-let gmailAuth, gmailProvider, outlookAuth, outlookProvider;
+const ENV_PATH = join(process.cwd(), '.env');
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ENV_PATH = join(__dirname, '../.env');
+// Read version from package.json (works both in dev and compiled binary)
+let VERSION = 'unknown';
+try {
+  const pkgPath = new URL('../package.json', import.meta.url);
+  VERSION = JSON.parse(readFileSync(pkgPath, 'utf8')).version;
+} catch { /* compiled binary — version baked in below */ }
+// Bun bakes import.meta.url differently; fall back to the injected constant
+if (VERSION === 'unknown') VERSION = '1.0.0';
 
 // ---------------------------------------------------------------------------
 // CLI flag parsing
@@ -33,7 +42,10 @@ function parseFlags() {
   const flags = { dryRun: false, auto: false, since: null, whitelist: false, report: false };
 
   for (const arg of args) {
-    if (arg === '--dry-run') {
+    if (arg === '--version' || arg === '-v') {
+      console.log(`mail-cleanup v${VERSION}`);
+      process.exit(0);
+    } else if (arg === '--dry-run') {
       flags.dryRun = true;
     } else if (arg === '--auto') {
       flags.auto = true;
@@ -93,7 +105,7 @@ function printBanner(flags) {
   }
 
   console.log('');
-  console.log(chalk.bgCyan.black.bold('  MAIL CLEANUP  '));
+  console.log(chalk.bgCyan.black.bold('  MAIL CLEANUP  ') + chalk.gray(` v${VERSION}`));
   console.log(chalk.cyan('  Triage your emails, sender by sender.'));
   console.log('');
   console.log(chalk.bold('  Flags:'));
@@ -159,9 +171,6 @@ async function askResumeCheckpoint(providerName, createdAt) {
 async function runGmail(flags) {
   checkEnv('gmail');
 
-  gmailAuth = await import('./auth/gmail-auth.js');
-  gmailProvider = await import('./providers/gmail.js');
-
   const auth = await gmailAuth.authenticateGmail();
 
   // Checkpoint handling
@@ -181,16 +190,11 @@ async function runGmail(flags) {
   }
 
   const groups = await gmailProvider.fetchAndGroupEmails(auth, { since: flags.since, excludeIds });
-
-  const { runReviewLoop } = await import('./ui/menu.js');
   await runReviewLoop(groups, gmailProvider, auth, flags, checkpoint, 'gmail');
 }
 
 async function runOutlook(flags) {
   checkEnv('outlook');
-
-  outlookAuth = await import('./auth/outlook-auth.js');
-  outlookProvider = await import('./providers/outlook.js');
 
   const accessToken = await outlookAuth.authenticateOutlook();
 
@@ -211,8 +215,6 @@ async function runOutlook(flags) {
   }
 
   const groups = await outlookProvider.fetchAndGroupEmails(accessToken, { since: flags.since, excludeIds });
-
-  const { runReviewLoop } = await import('./ui/menu.js');
   await runReviewLoop(groups, outlookProvider, accessToken, flags, checkpoint, 'outlook');
 }
 

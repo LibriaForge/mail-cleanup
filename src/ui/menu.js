@@ -1,6 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
+import Anthropic from '@anthropic-ai/sdk';
 import { createInterface } from 'readline';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
@@ -306,10 +307,9 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (apiKey) {
       try {
-        const { default: Anthropic } = await import('@anthropic-ai/sdk');
         claudeClient = new Anthropic({ apiKey });
       } catch {
-        console.log(chalk.yellow('\n  @anthropic-ai/sdk not installed — skipping AI classification.'));
+        console.log(chalk.yellow('\n  Failed to initialise Anthropic client — skipping AI classification.'));
       }
     } else {
       console.log(chalk.yellow('\n  ANTHROPIC_API_KEY not set — skipping AI classification.'));

@@ -94,3 +94,4 @@ checkpoint.json
 whitelist.json
 rules.json
 reports/
+dist/
