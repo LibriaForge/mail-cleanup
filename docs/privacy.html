@@ -61,9 +61,9 @@
     <li>Sender name and email address</li>
     <li>Email subject lines (up to 5 per sender)</li>
     <li>Email count per sender</li>
-    <li>A plain-text snippet of one email body (up to 500 characters), <strong>only</strong> when the initial classification is uncertain — used to help Claude make a better decision. HTML tags are stripped before sending. The snippet is never stored.</li>
+    <li>A plain-text snippet of one email body (up to 500 characters), <strong>only</strong> if you explicitly pass the <code>--body-classify</code> flag and the initial classification is uncertain. HTML tags are stripped before sending. The snippet is never stored.</li>
   </ul>
-  <p>No OAuth tokens are ever sent to Anthropic. Body snippets are only sent for ambiguous senders and are discarded immediately after classification.</p>
+  <p>No OAuth tokens are ever sent to Anthropic. Body content is only accessed when you opt in via <code>--body-classify</code> or <code>--body-unsubscribe</code>, and is discarded immediately after use — never stored.</p>
   <p>If no API key is configured, no data is sent to any third party.</p>
   <p>Email provider APIs (Google and Microsoft) receive standard OAuth API requests as required to list, move, and delete emails on your behalf.</p>
 

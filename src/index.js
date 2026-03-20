@@ -31,18 +31,21 @@ if (VERSION === 'unknown') VERSION = '1.0.0';
 /**
  * Parse CLI flags from process.argv.
  * Supported flags:
- *   --dry-run            never call deleteEmails/archiveEmails
- *   --auto               skip all interactive prompts
- *   --from=YYYY-MM-DD    only process emails received on or after this date
- *   --to=YYYY-MM-DD      only process emails received on or before this date
- *   --inbox              only process emails in the inbox (ignore all other folders/labels)
- *   --whitelist          open the whitelist manager
+ *   --dry-run              never call deleteEmails/archiveEmails
+ *   --auto                 skip all interactive prompts
+ *   --all                  scan all folders/labels (default is inbox only)
+ *   --no-ai                skip Claude API even if ANTHROPIC_API_KEY is set
+ *   --body-unsubscribe     fetch email body to find unsubscribe links (opt-in, privacy)
+ *   --body-classify        fetch body snippet to refine uncertain classifications (opt-in, privacy)
+ *   --from=YYYY-MM-DD      only process emails received on or after this date
+ *   --to=YYYY-MM-DD        only process emails received on or before this date
+ *   --whitelist            open the whitelist manager
  *
- * @returns {{ dryRun: boolean, auto: boolean, from: string|null, to: string|null, inbox: boolean, whitelist: boolean, report: boolean }}
+ * @returns {{ dryRun: boolean, auto: boolean, all: boolean, noAi: boolean, bodyUnsubscribe: boolean, bodyClassify: boolean, from: string|null, to: string|null, whitelist: boolean, report: boolean }}
  */
 function parseFlags() {
   const args = process.argv.slice(2);
-  const flags = { dryRun: false, auto: false, from: null, to: null, inbox: false, whitelist: false, report: false };
+  const flags = { dryRun: false, auto: false, all: false, noAi: false, bodyUnsubscribe: false, bodyClassify: false, from: null, to: null, whitelist: false, report: false };
 
   const isValidDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
@@ -54,12 +57,18 @@ function parseFlags() {
       flags.dryRun = true;
     } else if (arg === '--auto') {
       flags.auto = true;
+    } else if (arg === '--all') {
+      flags.all = true;
+    } else if (arg === '--no-ai') {
+      flags.noAi = true;
+    } else if (arg === '--body-unsubscribe') {
+      flags.bodyUnsubscribe = true;
+    } else if (arg === '--body-classify') {
+      flags.bodyClassify = true;
     } else if (arg === '--whitelist') {
       flags.whitelist = true;
     } else if (arg === '--report') {
       flags.report = true;
-    } else if (arg === '--inbox') {
-      flags.inbox = true;
     } else if (arg.startsWith('--from=')) {
       const dateStr = arg.slice('--from='.length).trim();
       if (isValidDate(dateStr)) flags.from = dateStr;
@@ -116,14 +125,17 @@ function printBanner(flags) {
   console.log(chalk.cyan('  Triage your emails, sender by sender.'));
   console.log('');
   console.log(chalk.bold('  Flags:'));
-  console.log(`  ${chalk.cyan('--dry-run')}          Preview actions without deleting or archiving anything`);
-  console.log(`  ${chalk.cyan('--auto')}              Apply all decisions automatically, no prompts`);
-  console.log(`  ${chalk.cyan('--from=YYYY-MM-DD')}   Only process emails received on or after this date`);
-  console.log(`  ${chalk.cyan('--to=YYYY-MM-DD')}     Only process emails received on or before this date`);
-  console.log(`  ${chalk.cyan('--inbox')}             Only process emails in the inbox (skip all other folders/labels)`);
-  console.log(`  ${chalk.cyan('--whitelist')}         Manage the sender whitelist (always kept)`);
-  console.log(`  ${chalk.cyan('--report')}            Write a JSON summary to reports/YYYY-MM-DD-HH-MM.json`);
-  console.log(`  ${chalk.cyan('DEBUG=1')}             Show full error stack traces`);
+  console.log(`  ${chalk.cyan('--dry-run')}             Preview actions without making any changes`);
+  console.log(`  ${chalk.cyan('--auto')}               Apply high/medium-confidence decisions automatically`);
+  console.log(`  ${chalk.cyan('--all')}                Scan all folders/labels (default: inbox only)`);
+  console.log(`  ${chalk.cyan('--no-ai')}              Skip Claude API even if ANTHROPIC_API_KEY is set`);
+  console.log(`  ${chalk.cyan('--body-unsubscribe')}   Fetch email body to find unsubscribe links (opt-in)`);
+  console.log(`  ${chalk.cyan('--body-classify')}      Fetch body snippet to refine uncertain AI classifications (opt-in)`);
+  console.log(`  ${chalk.cyan('--from=YYYY-MM-DD')}    Only process emails received on or after this date`);
+  console.log(`  ${chalk.cyan('--to=YYYY-MM-DD')}      Only process emails received on or before this date`);
+  console.log(`  ${chalk.cyan('--whitelist')}          Manage the sender whitelist (always kept)`);
+  console.log(`  ${chalk.cyan('--report')}             Save a JSON session report to reports/`);
+  console.log(`  ${chalk.cyan('DEBUG=1')}              Show full error stack traces`);
   console.log('');
 
   if (!existsSync(ENV_PATH) && process.env.ANTHROPIC_API_KEY === undefined) {
@@ -194,7 +206,7 @@ async function runGmail(flags) {
     }
   }
 
-  const groups = await gmailProvider.fetchAndGroupEmails(auth, { from: flags.from, to: flags.to, inbox: flags.inbox, excludeIds });
+  const groups = await gmailProvider.fetchAndGroupEmails(auth, { from: flags.from, to: flags.to, inbox: !flags.all, excludeIds });
   await runReviewLoop(groups, gmailProvider, auth, flags, checkpoint, 'gmail');
 }
 
@@ -219,7 +231,7 @@ async function runOutlook(flags) {
     }
   }
 
-  const groups = await outlookProvider.fetchAndGroupEmails(accessToken, { from: flags.from, to: flags.to, inbox: flags.inbox, excludeIds });
+  const groups = await outlookProvider.fetchAndGroupEmails(accessToken, { from: flags.from, to: flags.to, inbox: !flags.all, excludeIds });
   await runReviewLoop(groups, outlookProvider, accessToken, flags, checkpoint, 'outlook');
 }
 

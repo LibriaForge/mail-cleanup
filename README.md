@@ -93,11 +93,14 @@ The output binary is fully self-contained. Distribute it alongside a `.env` file
 
 | Flag | Description |
 |------|-------------|
-| `--dry-run` | Preview actions without deleting or archiving anything |
-| `--auto` | Apply all high/medium-confidence decisions automatically. Low-confidence and ambiguous senders are skipped — run without `--auto` afterwards to review them interactively |
+| `--dry-run` | Preview actions without making any changes |
+| `--auto` | Apply high/medium-confidence decisions automatically. Low-confidence senders are skipped — run without `--auto` to review them interactively |
+| `--all` | Scan all folders and labels (default is inbox only) |
+| `--no-ai` | Skip Claude API even if `ANTHROPIC_API_KEY` is set |
+| `--body-unsubscribe` | Scan email body for unsubscribe links when no header link is found (opt-in — reads one email body per sender) |
+| `--body-classify` | Fetch a body snippet to refine uncertain AI classifications (opt-in — reads one email body per uncertain sender) |
 | `--from=YYYY-MM-DD` | Only process emails received on or after this date |
 | `--to=YYYY-MM-DD` | Only process emails received on or before this date |
-| `--inbox` | Only process emails in the inbox — ignores all other folders and labels |
 | `--whitelist` | Open the whitelist manager to add/remove always-kept senders |
 | `--report` | Save a JSON session report to `reports/YYYY-MM-DD-HH-MM.json` |
 | `DEBUG=1` | Show full error stack traces on failure |

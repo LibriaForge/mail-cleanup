@@ -152,7 +152,7 @@ function saveReport(providerName, stats, actions) {
 // ---------------------------------------------------------------------------
 
 export async function runReviewLoop(groups, provider, authToken, flags = {}, checkpoint = null, providerName = '') {
-  const { dryRun = false, auto = false, report = false } = flags;
+  const { dryRun = false, auto = false, report = false, noAi = false, bodyClassify = false, bodyUnsubscribe = false } = flags;
 
   if (groups.length === 0) {
     console.log(chalk.green('\nNo sender groups to review. Your inbox is clean!'));
@@ -308,8 +308,10 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
   // Stage 2: Claude API pass
   // -------------------------------------------------------------------------
 
-  const apiKey = reviewGroups.length > 0 ? process.env.ANTHROPIC_API_KEY : null;
-  if (reviewGroups.length > 0 && !apiKey) {
+  const apiKey = (!noAi && reviewGroups.length > 0) ? process.env.ANTHROPIC_API_KEY : null;
+  if (reviewGroups.length > 0 && noAi) {
+    console.log(chalk.yellow('\n  AI classification disabled (--no-ai).'));
+  } else if (reviewGroups.length > 0 && !apiKey) {
     console.log(chalk.yellow('\n  ANTHROPIC_API_KEY not set — skipping AI classification.'));
   }
 
@@ -325,8 +327,8 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
       try {
         let result = await classifyWithClaude(group, apiKey);
 
-        // If uncertain, fetch a body snippet and ask Claude again with more context
-        if ((result.action === 'ask' || result.confidence === 'low') && provider.fetchBodyForUnsubscribe) {
+        // If uncertain and --body-classify is set, fetch a body snippet and re-ask Claude
+        if (bodyClassify && (result.action === 'ask' || result.confidence === 'low') && provider.fetchBodyForUnsubscribe) {
           process.stdout.write(chalk.gray('uncertain, fetching body… '));
           const rawBody = await provider.fetchBodyForUnsubscribe(authToken, group.ids[0]);
           const snippet = extractTextSnippet(rawBody);
@@ -486,9 +488,9 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
         }
         const parsed = parseUnsubscribeHeader(headerValue);
 
-        // Step 2: if no header URL, scan the email body
+        // Step 2: if no header URL and --body-unsubscribe is set, scan the email body
         let bodyUrl = null;
-        if (!parsed?.urls?.length && provider.fetchBodyForUnsubscribe) {
+        if (bodyUnsubscribe && !parsed?.urls?.length && provider.fetchBodyForUnsubscribe) {
           spinner.text = chalk.cyan('No header link — scanning email body for unsubscribe link…');
           const body = await provider.fetchBodyForUnsubscribe(authToken, group.ids[0]);
           bodyUrl = extractUnsubscribeFromBody(body);
@@ -515,7 +517,15 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
         resolvedFolder = null;
       }
 
-      if (finalAction === 'delete' || finalAction === 'archive') {
+      if (finalAction === 'delete') {
+        console.log(chalk.red.bold(`  ⚠ This will permanently delete ${fmt(group.count)} email(s). This cannot be undone.`));
+        if (!await askYN('  Confirm?')) { finalAction = 'skip'; resolvedFolder = null; }
+      } else if (finalAction === 'spam') {
+        console.log(chalk.yellow(`  ⚠ This will move ${fmt(group.count)} email(s) to spam/junk and train the provider filter.`));
+        if (!await askYN('  Confirm?')) { finalAction = 'skip'; resolvedFolder = null; }
+      }
+
+      if (finalAction === 'delete' || finalAction === 'archive' || finalAction === 'spam') {
         try {
           await executeAction(finalAction, group, provider, authToken, dryRun, resolvedFolder);
         } catch {

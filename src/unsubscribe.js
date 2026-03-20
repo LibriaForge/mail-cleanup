@@ -34,19 +34,21 @@ const LINK_RE = /<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
  */
 export function extractUnsubscribeFromBody(body) {
   if (!body) return null;
+  // Unsubscribe links are almost always at the bottom — scan last 500 chars only
+  const tail = body.length > 500 ? body.slice(-500) : body;
   const candidates = new Set();
 
   // URLs whose href contains an unsubscribe keyword
   HREF_RE.lastIndex = 0;
   let m;
-  while ((m = HREF_RE.exec(body)) !== null) {
+  while ((m = HREF_RE.exec(tail)) !== null) {
     const url = m[1];
     if (url.startsWith('http') && UNSUB_PATTERN.test(url)) candidates.add(url);
   }
 
   // <a> tags whose visible text contains an unsubscribe keyword
   LINK_RE.lastIndex = 0;
-  while ((m = LINK_RE.exec(body)) !== null) {
+  while ((m = LINK_RE.exec(tail)) !== null) {
     const url = m[1];
     const text = m[2].replace(/<[^>]+>/g, '').trim();
     if (url.startsWith('http') && UNSUB_PATTERN.test(text) && !candidates.has(url)) {
