@@ -283,6 +283,43 @@ export async function moveToFolder(auth, ids, folderName) {
   }
 }
 
+/**
+ * Recursively extract the first usable body (text/html preferred, text/plain fallback)
+ * from a Gmail MIME payload tree. Returns a decoded string or null.
+ */
+function extractBody(payload) {
+  if (!payload) return null;
+  const mime = payload.mimeType ?? '';
+  if ((mime === 'text/html' || mime === 'text/plain') && payload.body?.data) {
+    return Buffer.from(payload.body.data, 'base64url').toString('utf-8');
+  }
+  // Prefer text/html part when multipart
+  const parts = payload.parts ?? [];
+  const htmlPart = parts.find((p) => p.mimeType === 'text/html');
+  if (htmlPart) { const r = extractBody(htmlPart); if (r) return r; }
+  for (const part of parts) {
+    const result = extractBody(part);
+    if (result) return result;
+  }
+  return null;
+}
+
+/**
+ * Fetch the body of a single message for unsubscribe link scanning.
+ * Body is used transiently — never stored. Returns string or null.
+ */
+export async function fetchBodyForUnsubscribe(auth, messageId) {
+  const gmail = google.gmail({ version: 'v1', auth });
+  try {
+    const res = await gmail.users.messages.get({
+      userId: 'me', id: messageId, format: 'full', fields: 'payload',
+    });
+    return extractBody(res.data.payload);
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch List-Unsubscribe header from a single message. */
 export async function fetchListUnsubscribe(auth, messageId) {
   const gmail = google.gmail({ version: 'v1', auth });

@@ -294,6 +294,19 @@ export async function moveToFolder(accessToken, ids, folderName) {
   }
 }
 
+/**
+ * Fetch the body of a single message for unsubscribe link scanning.
+ * Body is used transiently — never stored. Returns string or null.
+ */
+export async function fetchBodyForUnsubscribe(accessToken, messageId) {
+  try {
+    const res = await graphRequest(accessToken, `/me/messages/${encodeURIComponent(messageId)}?$select=body`);
+    return res?.body?.content ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch List-Unsubscribe header from a single message via Graph. */
 export async function fetchListUnsubscribe(accessToken, messageId) {
   try {

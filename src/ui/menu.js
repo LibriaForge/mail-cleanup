@@ -9,7 +9,7 @@ import { classifyByKeywords, classifyWithClaude, CATEGORY_FOLDERS } from '../ai/
 import { loadWhitelist } from '../whitelist.js';
 import { saveCheckpoint, clearCheckpoint } from '../checkpoint.js';
 import { loadRules, saveRules, getRuleForSender } from '../rules.js';
-import { parseUnsubscribeHeader, executeUnsubscribe } from '../unsubscribe.js';
+import { parseUnsubscribeHeader, extractUnsubscribeFromBody, executeUnsubscribe } from '../unsubscribe.js';
 
 const REPORTS_DIR = join(process.cwd(), 'reports');
 
@@ -453,8 +453,9 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
 
     if (!quit) {
       if (action === 'unsubscribe_delete') {
-        // Fetch unsubscribe header and execute
         const spinner = ora({ text: chalk.cyan('Fetching unsubscribe info…'), color: 'cyan' }).start();
+
+        // Step 1: try List-Unsubscribe header
         let headerValue = null;
         let hasOneClick = false;
         if (provider.fetchListUnsubscribe) {
@@ -462,11 +463,24 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
           headerValue = unsubHeaders.headerValue;
           hasOneClick = unsubHeaders.hasOneClick;
         }
-        spinner.stop();
         const parsed = parseUnsubscribeHeader(headerValue);
-        if (parsed) {
-          const unsubResult = await executeUnsubscribe(parsed, hasOneClick);
-          if (unsubResult.success) {
+
+        // Step 2: if no header URL, scan the email body
+        let bodyUrl = null;
+        if (!parsed?.urls?.length && provider.fetchBodyForUnsubscribe) {
+          spinner.text = chalk.cyan('No header link — scanning email body for unsubscribe link…');
+          const body = await provider.fetchBodyForUnsubscribe(authToken, group.ids[0]);
+          bodyUrl = extractUnsubscribeFromBody(body);
+        }
+
+        spinner.stop();
+
+        const target = parsed ?? (bodyUrl ? { urls: [bodyUrl], mailto: [] } : null);
+        if (target) {
+          const unsubResult = await executeUnsubscribe(target, hasOneClick);
+          if (unsubResult.success && unsubResult.method === 'browser') {
+            console.log(chalk.green(`  Opened unsubscribe page in browser: ${unsubResult.detail}`));
+          } else if (unsubResult.success) {
             console.log(chalk.green(`  Unsubscribed via ${unsubResult.method}: ${unsubResult.detail}`));
           } else if (unsubResult.method === 'mailto') {
             console.log(chalk.yellow(`  Mailto unsubscribe — send an empty email to: ${unsubResult.detail}`));
@@ -474,7 +488,7 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
             console.log(chalk.yellow(`  Unsubscribe failed: ${unsubResult.detail}`));
           }
         } else {
-          console.log(chalk.yellow('  No List-Unsubscribe header found — just deleting.'));
+          console.log(chalk.yellow('  No unsubscribe link found in header or body — just deleting.'));
         }
         finalAction = 'delete';
         resolvedFolder = null;
