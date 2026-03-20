@@ -94,7 +94,7 @@ The output binary is fully self-contained. Distribute it alongside a `.env` file
 | Flag | Description |
 |------|-------------|
 | `--dry-run` | Preview actions without deleting or archiving anything |
-| `--auto` | Apply all decisions automatically, no prompts |
+| `--auto` | Apply all high/medium-confidence decisions automatically. Low-confidence and ambiguous senders are skipped — run without `--auto` afterwards to review them interactively |
 | `--from=YYYY-MM-DD` | Only process emails received on or after this date |
 | `--to=YYYY-MM-DD` | Only process emails received on or before this date |
 | `--whitelist` | Open the whitelist manager to add/remove always-kept senders |
