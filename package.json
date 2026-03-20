@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "build": "bun build --compile src/index.js --outfile dist/mail-cleanup",
-    "build:win": "bun build --compile src/index.js --outfile dist/mail-cleanup.exe --target bun-windows-x64",
+    "build:win": "bun build --compile src/index.js --outfile dist/mail-cleanup.exe --target bun-windows-x64 && node scripts/patch-exe.mjs",
     "build:mac": "bun build --compile src/index.js --outfile dist/mail-cleanup-mac --target bun-darwin-x64",
     "build:linux": "bun build --compile src/index.js --outfile dist/mail-cleanup-linux --target bun-linux-x64"
   },
@@ -25,5 +25,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "rcedit": "^5.0.2"
   }
 }
