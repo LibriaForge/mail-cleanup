@@ -112,7 +112,8 @@ async function executeAction(action, group, provider, authToken, dryRun = false,
 }
 
 function printSummary(stats) {
-  const { deleted, spam, archived, kept, skipped, total } = stats;
+  const zero = { senders: 0, emails: 0 };
+  const { deleted = zero, spam = zero, archived = zero, kept = zero, skipped = zero, total } = stats;
   console.log('');
   console.log(chalk.bold.white('━'.repeat(52)));
   console.log(chalk.bold.white('  SESSION SUMMARY'));
@@ -129,6 +130,7 @@ function printSummary(stats) {
 
 function recordStat(stats, action, group) {
   const key = action === 'delete' ? 'deleted' : action === 'spam' ? 'spam' : action === 'archive' ? 'archived' : action === 'keep' ? 'kept' : 'skipped';
+  if (!stats[key]) stats[key] = { senders: 0, emails: 0 };
   stats[key].senders++;
   stats[key].emails += group.count;
   stats.total.senders++;
