@@ -88,6 +88,9 @@ jspm_packages/
 Thumbs.db
 /.claude/
 
+# Bun build cache
+*.bun-build
+
 # App-specific
 src/credentials.js
 tokens/
