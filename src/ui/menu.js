@@ -60,6 +60,7 @@ async function promptAction(group, { canUnsubscribe = false, suggestedFolder = n
   }
   choices.push(
     { name: archiveLabel, value: 'archive' },
+    { name: `Move to…     — move to a folder you name`, value: 'move_to_folder' },
     { name: `Keep         — leave emails as they are`, value: 'keep' },
     { name: `Skip         — decide later`, value: 'skip' },
     new inquirer.Separator(),
@@ -473,6 +474,16 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
 
     let resolvedFolder = suggestedFolder;
     let finalAction = action;
+
+    if (!quit && action === 'move_to_folder') {
+      const { folderName } = await inquirer.prompt([{
+        type: 'input', name: 'folderName',
+        message: '  Folder name:',
+        validate: (v) => v.trim() !== '' || 'Required',
+      }]);
+      finalAction = 'archive';
+      resolvedFolder = folderName.trim();
+    }
 
     if (!quit) {
       if (action === 'unsubscribe_delete') {

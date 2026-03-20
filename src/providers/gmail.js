@@ -120,7 +120,7 @@ async function fetchMetadataBatch(gmail, ids) {
         userId: 'me',
         id,
         format: 'metadata',
-        metadataHeaders: ['From', 'Subject'],
+        metadataHeaders: ['From', 'Subject', 'Date'],
         fields: 'id,labelIds,payload/headers',
       })
     )
@@ -164,7 +164,7 @@ export async function fetchAndGroupEmails(auth, options = {}) {
     }
 
     // Step 2: Fetch metadata in batches
-    const senderMap = new Map(); // email → { name, subjects: [], ids: [] }
+    const senderMap = new Map(); // email → { name, subjects: [], ids: [], newestDate: null }
     let processed = 0;
 
     for (let i = 0; i < filteredIds.length; i += METADATA_BATCH_SIZE) {
@@ -175,15 +175,20 @@ export async function fetchAndGroupEmails(auth, options = {}) {
         const headers = msg.payload?.headers ?? [];
         const fromHeader = headers.find((h) => h.name === 'From')?.value ?? '';
         const subject = headers.find((h) => h.name === 'Subject')?.value ?? '(no subject)';
+        const dateHeader = headers.find((h) => h.name === 'Date')?.value ?? null;
+        const msgDate = dateHeader ? new Date(dateHeader) : null;
 
         const { name, email } = parseFrom(fromHeader);
 
         if (!senderMap.has(email)) {
-          senderMap.set(email, { name, subjects: [], ids: [] });
+          senderMap.set(email, { name, subjects: [], ids: [], newestDate: null });
         }
         const entry = senderMap.get(email);
         if (entry.subjects.length < 5) entry.subjects.push(subject);
         entry.ids.push(msg.id);
+        if (msgDate && !isNaN(msgDate) && (!entry.newestDate || msgDate > entry.newestDate)) {
+          entry.newestDate = msgDate;
+        }
       }
 
       processed += batch.length;
@@ -207,6 +212,7 @@ export async function fetchAndGroupEmails(auth, options = {}) {
         count: data.ids.length,
         subjects: data.subjects,
         ids: data.ids,
+        newestDate: data.newestDate ? data.newestDate.toISOString().slice(0, 10) : null,
       });
     }
     groups.sort((a, b) => b.count - a.count);

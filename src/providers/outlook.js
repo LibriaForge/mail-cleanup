@@ -71,8 +71,8 @@ async function fetchAllMessages(accessToken, spinner, from, to, inbox, unreadOnl
   const messages = [];
   const basePath = inbox ? '/me/mailFolders/inbox/messages' : '/me/messages';
   const query = filterStr
-    ? `?$filter=${encodeURIComponent(filterStr)}&$select=id,from,subject&$top=50`
-    : `?$select=id,from,subject&$top=50`;
+    ? `?$filter=${encodeURIComponent(filterStr)}&$select=id,from,subject,receivedDateTime&$top=50`
+    : `?$select=id,from,subject,receivedDateTime&$top=50`;
   let nextUrl = `${GRAPH_BASE}${basePath}${query}`;
 
   let page = 0;
@@ -137,13 +137,17 @@ export async function fetchAndGroupEmails(accessToken, options = {}) {
       const email = (msg.from?.emailAddress?.address ?? 'unknown').toLowerCase().trim();
       const name = msg.from?.emailAddress?.name ?? email;
       const subject = msg.subject ?? '(no subject)';
+      const msgDate = msg.receivedDateTime ? new Date(msg.receivedDateTime) : null;
 
       if (!senderMap.has(email)) {
-        senderMap.set(email, { name, subjects: [], ids: [] });
+        senderMap.set(email, { name, subjects: [], ids: [], newestDate: null });
       }
       const entry = senderMap.get(email);
       if (entry.subjects.length < 5) entry.subjects.push(subject);
       entry.ids.push(msg.id);
+      if (msgDate && !isNaN(msgDate) && (!entry.newestDate || msgDate > entry.newestDate)) {
+        entry.newestDate = msgDate;
+      }
     }
 
     spinner.succeed(
@@ -160,6 +164,7 @@ export async function fetchAndGroupEmails(accessToken, options = {}) {
         count: data.ids.length,
         subjects: data.subjects,
         ids: data.ids,
+        newestDate: data.newestDate ? data.newestDate.toISOString().slice(0, 10) : null,
       });
     }
     groups.sort((a, b) => b.count - a.count);
@@ -220,55 +225,28 @@ export async function deleteEmails(accessToken, ids) {
 export async function archiveEmails(accessToken, ids) {
   if (ids.length === 0) return;
 
-  // Resolve the archive folder ID once
+  // Try well-known archive folder names; if neither exists, create one
   let archiveFolderId;
-  try {
-    const res = await graphRequest(accessToken, '/me/mailFolders/archive');
-    archiveFolderId = res?.id;
-  } catch {
-    // Some tenants use "Archive" (capital A)
+  for (const path of ['/me/mailFolders/archive', '/me/mailFolders/Archive']) {
     try {
-      const res = await graphRequest(accessToken, '/me/mailFolders/Archive');
-      archiveFolderId = res?.id;
-    } catch {
-      archiveFolderId = null;
-    }
+      const res = await graphRequest(accessToken, path);
+      if (res?.id) { archiveFolderId = res.id; break; }
+    } catch { /* try next */ }
+  }
+  if (!archiveFolderId) {
+    archiveFolderId = await getOrCreateFolder(accessToken, 'Archive');
   }
 
   for (let i = 0; i < ids.length; i += GRAPH_BATCH_SIZE) {
     const chunk = ids.slice(i, i + GRAPH_BATCH_SIZE);
-
-    const requests = chunk.flatMap((id, idx) => {
-      const reqs = [];
-      const base = idx * 2;
-
-      // Mark as read
-      reqs.push({
-        id: String(base + 1),
-        method: 'PATCH',
-        url: `/me/messages/${encodeURIComponent(id)}`,
-        headers: { 'Content-Type': 'application/json' },
-        body: { isRead: true },
-      });
-
-      // Move to archive folder if we have it, otherwise just mark read
-      if (archiveFolderId) {
-        reqs.push({
-          id: String(base + 2),
-          method: 'POST',
-          url: `/me/messages/${encodeURIComponent(id)}/move`,
-          headers: { 'Content-Type': 'application/json' },
-          body: { destinationId: archiveFolderId },
-        });
-      }
-
-      return reqs;
-    });
-
-    // Graph batch max is 20 — split if archiving doubles request count
-    for (let j = 0; j < requests.length; j += GRAPH_BATCH_SIZE) {
-      await sendBatch(accessToken, requests.slice(j, j + GRAPH_BATCH_SIZE));
-    }
+    const requests = chunk.map((id, idx) => ({
+      id: String(idx + 1),
+      method: 'POST',
+      url: `/me/messages/${encodeURIComponent(id)}/move`,
+      headers: { 'Content-Type': 'application/json' },
+      body: { destinationId: archiveFolderId },
+    }));
+    await sendBatch(accessToken, requests);
   }
 }
 

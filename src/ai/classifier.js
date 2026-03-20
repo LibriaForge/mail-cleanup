@@ -191,7 +191,7 @@ export function extractTextSnippet(html, maxLen = 500) {
  * @returns {Promise<{ action: 'delete'|'archive'|'keep'|'ask', confidence: 'high'|'medium'|'low', reason: string, category: string }>}
  */
 export async function classifyWithClaude(group, apiKey, bodySnippet = null) {
-  const { name, email, count, subjects = [] } = group;
+  const { name, email, count, subjects = [], newestDate = null } = group;
 
   const subjectList = subjects.length > 0
     ? subjects.map((s) => `  - ${s}`).join('\n')
@@ -201,10 +201,19 @@ export async function classifyWithClaude(group, apiKey, bodySnippet = null) {
     ? `\nBody snippet (plain text, first 500 chars — use for additional context):\n  "${bodySnippet}"\n`
     : '';
 
+  let dateSection = '';
+  if (newestDate) {
+    const today = new Date();
+    const newest = new Date(newestDate);
+    const yearsAgo = Math.floor((today - newest) / (1000 * 60 * 60 * 24 * 365));
+    const ageLabel = yearsAgo >= 2 ? `${yearsAgo} years ago` : yearsAgo === 1 ? '~1 year ago' : 'within the last year';
+    dateSection = `\nMost recent email: ${newestDate} (${ageLabel})`;
+  }
+
   const prompt = `You are helping clean up a cluttered email inbox. Analyze this sender and recommend an action.
 
 Sender: ${name} <${email}>
-Total emails: ${count}
+Total emails: ${count}${dateSection}
 Sample subjects:
 ${subjectList}${bodySection}
 
@@ -222,6 +231,7 @@ Rules:
 - archive: automated but potentially useful — receipts, order confirmations, account alerts, shipping, billing, bank statements
 - keep: anything personal, anything needing a reply, job-related, legal, medical, financial advice from a real person
 - ask: genuinely ambiguous — mixed signals, unclear sender purpose
+- if the most recent email is more than 2 years old, treat the sender as stale — lean towards delete or archive rather than keep
 - confidence high = obvious decision, apply automatically without asking user
 - confidence medium = fairly sure, show recommendation and ask Y/N to confirm
 - confidence low or action=ask = show recommendation, let user pick from full menu

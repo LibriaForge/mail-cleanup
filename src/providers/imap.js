@@ -133,13 +133,17 @@ export async function fetchAndGroupEmails(client, options = {}) {
       const email = (from?.address ?? 'unknown').toLowerCase().trim();
       const name = from?.name || from?.address || email;
       const subject = msg.envelope?.subject ?? '(no subject)';
+      const msgDate = msg.envelope?.date ? new Date(msg.envelope.date) : null;
 
       if (!senderMap.has(email)) {
-        senderMap.set(email, { name, subjects: [], ids: [] });
+        senderMap.set(email, { name, subjects: [], ids: [], newestDate: null });
       }
       const entry = senderMap.get(email);
       if (entry.subjects.length < MAX_SUBJECTS) entry.subjects.push(subject);
       entry.ids.push(String(msg.uid));
+      if (msgDate && !isNaN(msgDate) && (!entry.newestDate || msgDate > entry.newestDate)) {
+        entry.newestDate = msgDate;
+      }
     }
 
     spinner.succeed(
@@ -156,6 +160,7 @@ export async function fetchAndGroupEmails(client, options = {}) {
         count: data.ids.length,
         subjects: data.subjects,
         ids: data.ids,
+        newestDate: data.newestDate ? data.newestDate.toISOString().slice(0, 10) : null,
       });
     }
     groups.sort((a, b) => b.count - a.count);
