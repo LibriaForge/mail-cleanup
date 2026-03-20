@@ -306,7 +306,7 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (apiKey) {
       try {
-        claudeClient = new Anthropic({ apiKey });
+        claudeClient = new Anthropic({ apiKey, fetch: globalThis.fetch });
       } catch {
         console.log(chalk.yellow('\n  Failed to initialise Anthropic client — skipping AI classification.'));
       }
