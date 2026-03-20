@@ -151,6 +151,35 @@ export function classifyByKeywords(group) {
 }
 
 // ---------------------------------------------------------------------------
+// Body snippet extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip HTML tags and extract a plain-text snippet from an email body.
+ * Used to give Claude extra context for ambiguous senders.
+ *
+ * @param {string|null} html
+ * @param {number} maxLen  Maximum characters to return (default 500)
+ * @returns {string|null}
+ */
+export function extractTextSnippet(html, maxLen = 500) {
+  if (!html) return null;
+  let text = html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > 0 ? text.slice(0, maxLen) : null;
+}
+
+// ---------------------------------------------------------------------------
 // Stage 2: Claude API classification
 // ---------------------------------------------------------------------------
 
@@ -161,19 +190,23 @@ export function classifyByKeywords(group) {
  * @param {string} apiKey  Anthropic API key
  * @returns {Promise<{ action: 'delete'|'archive'|'keep'|'ask', confidence: 'high'|'medium'|'low', reason: string, category: string }>}
  */
-export async function classifyWithClaude(group, apiKey) {
+export async function classifyWithClaude(group, apiKey, bodySnippet = null) {
   const { name, email, count, subjects = [] } = group;
 
   const subjectList = subjects.length > 0
     ? subjects.map((s) => `  - ${s}`).join('\n')
     : '  (no subjects available)';
 
+  const bodySection = bodySnippet
+    ? `\nBody snippet (plain text, first 500 chars — use for additional context):\n  "${bodySnippet}"\n`
+    : '';
+
   const prompt = `You are helping clean up a cluttered email inbox. Analyze this sender and recommend an action.
 
 Sender: ${name} <${email}>
 Total emails: ${count}
 Sample subjects:
-${subjectList}
+${subjectList}${bodySection}
 
 Reply with JSON only, no explanation outside the JSON:
 {

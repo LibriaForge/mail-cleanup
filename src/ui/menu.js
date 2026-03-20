@@ -5,7 +5,7 @@ import { createInterface } from 'readline';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
-import { classifyByKeywords, classifyWithClaude, CATEGORY_FOLDERS } from '../ai/classifier.js';
+import { classifyByKeywords, classifyWithClaude, extractTextSnippet, CATEGORY_FOLDERS } from '../ai/classifier.js';
 import { loadWhitelist } from '../whitelist.js';
 import { saveCheckpoint, clearCheckpoint } from '../checkpoint.js';
 import { loadRules, saveRules, getRuleForSender } from '../rules.js';
@@ -323,7 +323,19 @@ export async function runReviewLoop(groups, provider, authToken, flags = {}, che
       const group = reviewGroups[i];
       process.stdout.write(chalk.gray(`  ${i + 1}/${reviewGroups.length} ${group.email}… `));
       try {
-        const result = await classifyWithClaude(group, apiKey);
+        let result = await classifyWithClaude(group, apiKey);
+
+        // If uncertain, fetch a body snippet and ask Claude again with more context
+        if ((result.action === 'ask' || result.confidence === 'low') && provider.fetchBodyForUnsubscribe) {
+          process.stdout.write(chalk.gray('uncertain, fetching body… '));
+          const rawBody = await provider.fetchBodyForUnsubscribe(authToken, group.ids[0]);
+          const snippet = extractTextSnippet(rawBody);
+          if (snippet) {
+            result = await classifyWithClaude(group, apiKey, snippet);
+            process.stdout.write(chalk.gray('refined → '));
+          }
+        }
+
         process.stdout.write(
           result.action === 'delete'  ? chalk.red(`${result.action} (${result.confidence})\n`)
           : result.action === 'spam'    ? chalk.magenta(`${result.action} (${result.confidence})\n`)
